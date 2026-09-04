@@ -31,7 +31,11 @@ merge-modal layer — not every check sheet needs these last three, but all 22 c
   connection is required even when running locally.
 - Firestore project credentials live in `firebase-config.js` (shared by every check sheet).
   There is no local emulator config (`firebase.json` doesn't exist) — writes go to the real
-  `pomi-checksheet-e7` project.
+  `database-eic7` project (migrated from `pomi-checksheet-e7` on 2026-09-05 as part of
+  consolidating everything to a single Google account; all 3 collections — `checksheets`,
+  `approvals`, `dashboard_users` — were copied over with document IDs preserved, and
+  Firestore Security Rules were re-created to match the old project's observed open
+  read/write behavior on those 3 collections, deny-all elsewhere).
 - There is no linter or test command. Verify JS changes with `node --check` on the extracted
   inline `<script>` body before considering an edit done, since a syntax error inside one
   `<script>` block silently kills every function defined after it on that page.

@@ -9,12 +9,12 @@
 // ============================================================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB2c5ZFYRH8rKRcYlza175wTM36O8jwDGw",
-  authDomain: "pomi-checksheet-e7.firebaseapp.com",
-  projectId: "pomi-checksheet-e7",
-  storageBucket: "pomi-checksheet-e7.firebasestorage.app",
-  messagingSenderId: "459830825503",
-  appId: "1:459830825503:web:ef9356faa62b632f87fb2a"
+  apiKey: "AIzaSyDXEMaTgz3DDM8DtJyrk5p46vQLW-gFZIc",
+  authDomain: "database-eic7.firebaseapp.com",
+  projectId: "database-eic7",
+  storageBucket: "database-eic7.firebasestorage.app",
+  messagingSenderId: "221856009931",
+  appId: "1:221856009931:web:7b3a3c088d579fdc41554e"
 };
 
 firebase.initializeApp(firebaseConfig);
