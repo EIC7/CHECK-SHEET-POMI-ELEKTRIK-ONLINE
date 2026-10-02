@@ -6,16 +6,17 @@
 <title>Dashboard — ELECTRIC 7 POMI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260901d"></script>
-<script src="db-helper.js?v=20260901d"></script>
-<script src="approval-helper.js?v=20260901d"></script>
-<script src="auth-session.js?v=20260901d"></script>
-<script src="team-routing.js?v=20260901d"></script>
+<script src="firebase-config.js?v=20261001b"></script>
+<script src="db-helper.js?v=20261001b"></script>
+<script src="approval-helper.js?v=20261001b"></script>
+<script src="auth-session.js?v=20261001b"></script>
+<script src="feedback-widget.js?v=20261001b"></script>
+<script src="team-routing.js?v=20261001b"></script>
 <style>
 :root{
   --bg:#f4f7fb;
@@ -42,9 +43,9 @@
   --ok-soft:#d1fae5;
   --ng:#f43f5e;
   --ng-soft:#ffe4e6;
-  --display:'Space Grotesk',system-ui,sans-serif;
+  --display:var(--body);
   --body:'Manrope',system-ui,sans-serif;
-  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --mono:var(--body);
   --shadow-sm:0 1px 2px rgba(15,23,42,0.04);
   --shadow:0 2px 8px rgba(15,23,42,0.06),0 1px 2px rgba(15,23,42,0.04);
   --shadow-lg:0 14px 40px -10px rgba(37,99,235,0.18),0 4px 12px rgba(15,23,42,0.06);
@@ -53,6 +54,7 @@
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
+button,input,select,textarea{font-family:var(--body)}
 body{
   font-family:var(--body);
   background:var(--bg);
@@ -287,6 +289,38 @@ body.role-technician .scope-note,body.role-techop2 .scope-note{display:flex}
 .trend-add-hint{font-size:11.5px;color:var(--txt-3);min-height:15px}
 .trend-add-btn{font-size:12.5px;padding:8px 14px}
 .trend-add-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none!important}
+.trend-bulk{border:1px solid var(--bdr);border-radius:10px;padding:14px;margin-bottom:16px}
+.trend-bulk summary{cursor:pointer;font-weight:600;color:var(--pri)}
+.trend-bulk-tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:14px 0}
+.trend-bulk-tools input[type=search],.trend-bulk-tools select{padding:9px;border:1px solid var(--bdr);border-radius:6px;max-width:100%;background:var(--surf);color:var(--txt)}
+.trend-bulk-list{max-height:300px;overflow:auto;border:1px solid var(--bdr);border-radius:6px;padding:10px}
+.trend-bulk-group{font-size:12px;font-weight:700;color:var(--txt-2);padding:10px 0 5px}
+.trend-bulk-option{display:flex;gap:9px;align-items:center;padding:8px;cursor:pointer;font-size:13px}
+.trend-bulk-option:has(input:disabled){opacity:.5;cursor:not-allowed}
+.trend-bulk-option input{accent-color:var(--pri);width:16px;height:16px;flex-shrink:0}
+.trend-bulk-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:18px}
+.trend-bulk-result{border:1px solid var(--bdr);border-radius:10px;padding:14px;min-width:0}
+.trend-bulk-result h4{font-size:13px;margin:0 0 6px;line-height:1.5}
+.trend-bulk-result p{font-size:12px;color:var(--txt-3);margin-bottom:10px}
+.trend-bulk-canvas{height:360px;position:relative}
+.trend-series-tags button:hover,.trend-series-tags button:focus-visible,.trend-chip:focus-visible{background:var(--pri-soft);outline:2px solid var(--pri);outline-offset:2px}
+.trend-axis-controls{display:flex;flex-wrap:wrap;gap:10px 18px;padding:12px;background:var(--surf-2);border:1px solid var(--bdr);border-radius:9px;margin-top:14px;align-items:end}
+.trend-axis-pair{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:12px;min-width:0}
+.trend-axis-pair label{display:flex;align-items:center;gap:5px}
+.trend-axis-pair input,.trend-axis-pair select{border:1px solid var(--bdr);border-radius:6px;padding:7px;background:var(--surf);color:var(--txt);min-width:0;width:112px;font-size:12px}
+.trend-axis-pair input[type=date]{width:140px}
+.trend-axis-message{width:100%;font-size:12px;color:var(--rose)}
+.trend-picker-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,2fr);gap:16px;margin:16px 0}
+.trend-picker-grid h4{font-size:13px;color:var(--txt-2)}
+.trend-picker-grid input[type=search]{width:100%;padding:9px 12px;border:1px solid var(--bdr);border-radius:6px;margin:8px 0;background:var(--surf);color:var(--txt)}
+.trend-picker-grid .trend-bulk-tools{font-size:12px;gap:8px;margin:8px 0}
+.trend-graph-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.trend-series-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.trend-series-tags button{font-size:12px;text-align:left;white-space:normal}
+.trend-graph-scroll{overflow-x:auto}
+@media(max-width:860px){.trend-picker-grid{grid-template-columns:1fr}}
+.trend-bulk-result details{font-size:12px;margin-top:10px;overflow:auto;max-height:220px}
+@media(max-width:860px){.trend-bulk-grid{grid-template-columns:1fr}}
 .trend-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
 .trend-chip{
   display:inline-flex;align-items:center;gap:7px;background:var(--surf-2);border:1px solid var(--bdr);
@@ -751,6 +785,14 @@ table.dtbl tr:last-child td{border-bottom:none}
   .tb-nav a{padding:7px 10px;font-size:12px;white-space:nowrap;flex-shrink:0}
   .stat-grid{grid-template-columns:1fr 1fr}
 }
+
+/* mobile-topbar-fix: on a phone the topbar buttons scroll inside the bar
+   instead of widening the whole page (which made every page side-scroll) */
+@media(max-width:640px){
+  .tb-right{min-width:0;flex-shrink:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tb-right::-webkit-scrollbar{display:none}
+  .tb-right>*{flex-shrink:0}
+}
 </style>
 </head>
 <body>
@@ -939,6 +981,45 @@ table.dtbl tr:last-child td{border-bottom:none}
       </div>
     </div>
 
+    <details class="trend-bulk" id="trend-bulk" open>
+      <summary>Atur Grafik — pilih parameter dan equipment</summary>
+      <p class="trend-add-hint" style="margin-top:10px">Centang equipment dan parameter, lalu pilih tujuan grafik. Anda bisa menambahkan pilihan berikutnya ke grafik yang sama atau membuat grafik terpisah.</p>
+      <div class="trend-picker-grid">
+        <div>
+          <h4>1. Equipment</h4>
+          <input type="search" id="tr-bulk-equip-search" placeholder="Cari equipment…" aria-label="Cari equipment tren" oninput="renderBulkEquips()">
+          <div class="trend-bulk-tools">
+            <label><input type="checkbox" id="tr-bulk-equip-all" onchange="toggleAllBulkEquips(this.checked)" disabled> Pilih semua hasil pencarian</label>
+            <button type="button" class="btn btn-outline" onclick="clearBulkEquips()">Batal pilih</button>
+          </div>
+          <div class="trend-bulk-list" id="tr-bulk-equips">Pilih check sheet terlebih dahulu.</div>
+        </div>
+        <div>
+          <h4>2. Parameter</h4>
+          <input type="search" id="tr-bulk-search" placeholder="Cari parameter…" aria-label="Cari parameter tren" oninput="renderBulkOptions()">
+          <div class="trend-bulk-tools">
+            <label><input type="checkbox" id="tr-bulk-all" onchange="toggleAllBulk(this.checked)" disabled> Pilih semua hasil pencarian</label>
+            <button type="button" class="btn btn-outline" onclick="clearBulkSelection()">Batal pilih</button>
+          </div>
+          <div class="trend-bulk-list" id="tr-bulk-list">Pilih check sheet dan equipment terlebih dahulu.</div>
+        </div>
+      </div>
+      <div class="trend-bulk-tools">
+        <label for="tr-bulk-target">3. Tampilkan di</label>
+        <select id="tr-bulk-target">
+          <option value="new">Satu grafik baru (gabungkan pilihan)</option>
+          <option value="separate">Grafik terpisah per parameter &amp; equipment</option>
+        </select>
+        <button type="button" class="btn btn-outline" id="tr-bulk-add-graph" onclick="addBulkGraph()">+ Add Grafik</button>
+      </div>
+      <div class="trend-bulk-tools">
+        <button type="button" class="btn btn-primary" id="tr-bulk-show" onclick="showBulkTrends()" disabled>Tampilkan Tren Terpilih</button>
+        <button type="button" class="btn btn-outline" onclick="clearBulkCharts()">Hapus semua grafik</button>
+        <span id="tr-bulk-count" role="status" aria-live="polite">0 equipment · 0 parameter</span>
+      </div>
+      <p class="trend-add-hint" id="tr-bulk-feedback" role="status" aria-live="polite"></p>
+    </details>
+    <div id="trend-bulk-results" class="trend-bulk-grid"></div>
     <div class="trend-add-row">
       <span class="trend-add-hint" id="trend-add-hint"></span>
       <button type="button" class="btn btn-outline trend-add-btn" id="trend-add-btn" onclick="addTrendSeries()" disabled>+ Tambah ke Perbandingan</button>
@@ -950,19 +1031,7 @@ table.dtbl tr:last-child td{border-bottom:none}
     <div id="trend-content" style="display:none">
       <div class="trend-compare" id="trend-compare"></div>
       <div class="chart-body tall"><canvas id="chartParamTrend"></canvas></div>
-      <div class="trend-scale-row" id="trend-scale-row" style="display:none">
-        <span class="trend-scale-lbl">Skala Y<span id="trend-scale-unit-lbl"></span></span>
-        <input type="number" id="trend-ymin" class="trend-scale-input" placeholder="Min" step="any" oninput="applyTrendScale()">
-        <span class="trend-scale-sep">–</span>
-        <input type="number" id="trend-ymax" class="trend-scale-input" placeholder="Max" step="any" oninput="applyTrendScale()">
-        <span class="trend-scale-r" id="trend-scale-r">
-          <span class="trend-scale-lbl">Sumbu kanan</span>
-          <input type="number" id="trend-y1min" class="trend-scale-input" placeholder="Min" step="any" oninput="applyTrendScale()">
-          <span class="trend-scale-sep">–</span>
-          <input type="number" id="trend-y1max" class="trend-scale-input" placeholder="Max" step="any" oninput="applyTrendScale()">
-        </span>
-        <button type="button" class="trend-scale-reset" onclick="resetTrendScale()">Auto</button>
-      </div>
+      <div id="trend-scale-row"></div>
       <div class="trend-mixed-note" id="trend-mixed-note" style="display:none"></div>
       <div class="trend-crit" id="trend-crit" style="display:none"></div>
       <div class="trend-table-wrap">
@@ -1089,6 +1158,7 @@ table.dtbl tr:last-child td{border-bottom:none}
 </div>
 
 <script>
+if(typeof Chart !== 'undefined') Chart.defaults.font.family = getComputedStyle(document.documentElement).getPropertyValue('--body').trim();
 let allData = [];       // what the table/stats/charts/export actually use — deduped by default
 let allDataRaw = [];    // exactly what Firestore returned, duplicates included
 let filteredData = [];
@@ -1821,6 +1891,8 @@ function initParamTrend() {
   } else {
     TREND_SERIES = [];
     resetTrendDownstream();
+    TR = { tag: '', submissions: [], params: [], equips: [] };
+    initBulkTrends();
     renderSeriesChips();
     updateAddState();
   }
@@ -1839,6 +1911,7 @@ function resetTrendDownstream() {
 
 function onTrendSheetChange(keepSelection) {
   const tag = document.getElementById('tr-sheet').value;
+  if(!keepSelection){ BULK_SELECTED.clear(); BULK_EQUIPS.clear(); clearBulkCharts(); }
   const prevParam = keepSelection ? document.getElementById('tr-param').value : '';
   const prevEquip = keepSelection ? document.getElementById('tr-equip').value : '';
   // A pinned comparison set only survives a refresh that keeps the SAME check
@@ -1850,7 +1923,7 @@ function onTrendSheetChange(keepSelection) {
   resetTrendDownstream();
   renderSeriesChips();
 
-  if (!tag) { TR = { tag: '', submissions: [], params: [], equips: [] }; updateAddState(); return; }
+  if (!tag) { TR = { tag: '', submissions: [], params: [], equips: [] }; initBulkTrends(); updateAddState(); return; }
 
   const sheetKeys = trendSheetKeysFor(tag);
   const ownSubs = allData
@@ -1905,6 +1978,7 @@ function onTrendSheetChange(keepSelection) {
   submissions.forEach(s => s.columns.forEach(addEquip));
 
   TR = { tag, submissions, params, equips };
+  initBulkTrends(keepSelection);
 
   const pSel = document.getElementById('tr-param');
   let curSection = null; let html = '<option value="">Pilih parameter…</option>';
@@ -2035,12 +2109,163 @@ function renderSeriesChips() {
   if (!TREND_SERIES.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
   wrap.style.display = 'flex';
   wrap.innerHTML = TREND_SERIES.map((s, i) => `
-    <span class="trend-chip">
+    <span class="trend-chip" tabindex="0" onmouseenter="highlightTrend(chartParamTrend,${i})" onmouseleave="highlightTrend(chartParamTrend,null)" onfocusin="highlightTrend(chartParamTrend,${i})" onfocusout="highlightTrend(chartParamTrend,null)">
       <span class="trend-chip-dot" style="background:${TREND_PALETTE[i % TREND_PALETTE.length]}"></span>
       ${esc(trendSeriesLabel(s))}
       <button type="button" class="trend-chip-x" onclick="removeTrendSeries(${i})" title="Hapus dari chart">&times;</button>
     </span>`).join('') +
     (TREND_SERIES.length > 1 ? `<button type="button" class="trend-chips-clear" onclick="clearTrendSeries()">Hapus semua</button>` : '');
+}
+
+// Batch selections are staging only. Applied series live in numbered graphs.
+const BULK_SELECTED = new Set(), BULK_EQUIPS = new Set();
+let BULK_CHARTS = [], BULK_GRAPHS = [], bulkGraphSeq = 0;
+function destroyBulkCharts(){BULK_CHARTS.forEach(chart=>chart.destroy());BULK_CHARTS=[];}
+function clearBulkCharts(){
+  destroyBulkCharts();BULK_GRAPHS=[];bulkGraphSeq=0;
+  document.getElementById('trend-bulk-results').replaceChildren();
+  document.getElementById('tr-bulk-feedback').textContent='';syncBulkTargets();
+}
+function syncBulkTargets(selected){
+  const target=document.getElementById('tr-bulk-target'),prev=selected??target.value;
+  target.replaceChildren(new Option('Satu grafik baru (gabungkan pilihan)','new'),new Option('Grafik terpisah per parameter & equipment','separate'));
+  BULK_GRAPHS.forEach(g=>target.add(new Option('Grafik '+g.id+' ('+g.series.length+' tren)',String(g.id))));
+  target.value=[...target.options].some(o=>o.value===String(prev))?String(prev):'new';
+}
+function newBulkGraph(){const graph={id:++bulkGraphSeq,series:[],view:{}};BULK_GRAPHS.push(graph);return graph;}
+function addBulkGraph(){if(!TR.tag)return;const graph=newBulkGraph();syncBulkTargets(graph.id);renderBulkGraphs();}
+function removeBulkGraph(id){BULK_GRAPHS=BULK_GRAPHS.filter(g=>g.id!==id);syncBulkTargets();renderBulkGraphs();}
+function removeBulkGraphSeries(id,index){
+  const graph=BULK_GRAPHS.find(g=>g.id===id);if(!graph)return;
+  graph.series.splice(index,1);syncBulkTargets();renderBulkGraphs();
+}
+function initBulkTrends(keep=false){
+  if(!keep){
+    BULK_SELECTED.clear();BULK_EQUIPS.clear();clearBulkCharts();
+    document.getElementById('tr-bulk-search').value='';document.getElementById('tr-bulk-equip-search').value='';
+  }
+  for(const eq of BULK_EQUIPS)if(!TR.equips.includes(eq))BULK_EQUIPS.delete(eq);
+  for(const key of BULK_SELECTED)if(!bulkParamAvailable(key))BULK_SELECTED.delete(key);
+  BULK_GRAPHS.forEach(g=>{g.series=g.series.filter(s=>TR.params.some(p=>p.key===s.key)&&TR.equips.includes(s.equip)&&buildSeriesPoints(s.key,s.equip).length);});
+  renderBulkEquips();renderBulkOptions();syncBulkTargets();renderBulkGraphs();
+}
+function bulkVisibleEquips(){const q=document.getElementById('tr-bulk-equip-search').value.trim().toLocaleLowerCase();return TR.equips.filter(eq=>eq.toLocaleLowerCase().includes(q));}
+function renderBulkEquips(){
+  const list=document.getElementById('tr-bulk-equips');list.replaceChildren();
+  const equips=bulkVisibleEquips();if(!equips.length)list.textContent=TR.tag?'Tidak ada equipment yang cocok.':'Pilih check sheet terlebih dahulu.';
+  equips.forEach(eq=>{
+    const label=document.createElement('label');label.className='trend-bulk-option';
+    const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=BULK_EQUIPS.has(eq);
+    checkbox.addEventListener('change',()=>{checkbox.checked?BULK_EQUIPS.add(eq):BULK_EQUIPS.delete(eq);onBulkEquipmentChange();});
+    label.append(checkbox,document.createTextNode(eq));list.appendChild(label);
+  });updateBulkState();
+}
+function toggleAllBulkEquips(checked){bulkVisibleEquips().forEach(eq=>checked?BULK_EQUIPS.add(eq):BULK_EQUIPS.delete(eq));renderBulkEquips();onBulkEquipmentChange();}
+function clearBulkEquips(){BULK_EQUIPS.clear();renderBulkEquips();onBulkEquipmentChange();}
+function onBulkEquipmentChange(){
+  for(const key of BULK_SELECTED)if(!bulkParamAvailable(key))BULK_SELECTED.delete(key);
+  document.getElementById('tr-bulk-feedback').textContent='';renderBulkOptions();
+}
+function bulkParamAvailable(key){return [...BULK_EQUIPS].some(eq=>buildSeriesPoints(key,eq).length);}
+function bulkVisibleParams(){
+  const query=document.getElementById('tr-bulk-search').value.trim().toLocaleLowerCase();
+  return TR.params.filter(p=>(p.section+' '+p.no+' '+p.desc).toLocaleLowerCase().includes(query));
+}
+function renderBulkOptions(){
+  const list=document.getElementById('tr-bulk-list');list.replaceChildren();let section=null;
+  const params=bulkVisibleParams();
+  if(!BULK_EQUIPS.size){list.textContent='Centang equipment terlebih dahulu.';updateBulkState();return;}
+  if(!params.length)list.textContent='Tidak ada parameter yang cocok.';
+  params.forEach(p=>{
+    if(p.section!==section){const heading=document.createElement('div');heading.className='trend-bulk-group';heading.textContent=p.section||'Parameter';list.appendChild(heading);section=p.section;}
+    const label=document.createElement('label');label.className='trend-bulk-option';
+    const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=BULK_SELECTED.has(p.key);checkbox.disabled=!bulkParamAvailable(p.key);
+    checkbox.addEventListener('change',()=>{checkbox.checked?BULK_SELECTED.add(p.key):BULK_SELECTED.delete(p.key);updateBulkState();});
+    label.append(checkbox,document.createTextNode((p.no?p.no+' — ':'')+p.desc+(checkbox.disabled?' (belum ada data)':'')));list.appendChild(label);
+  });updateBulkState();
+}
+function updateBulkState(){
+  const setAll=(id,items,selected)=>{const all=document.getElementById(id);const count=items.filter(x=>selected.has(x)).length;all.disabled=!items.length;all.checked=items.length>0&&count===items.length;all.indeterminate=count>0&&count<items.length;};
+  setAll('tr-bulk-all',bulkVisibleParams().filter(p=>bulkParamAvailable(p.key)).map(p=>p.key),BULK_SELECTED);
+  setAll('tr-bulk-equip-all',bulkVisibleEquips(),BULK_EQUIPS);
+  document.getElementById('tr-bulk-count').textContent=BULK_EQUIPS.size+' equipment · '+BULK_SELECTED.size+' parameter';
+  document.getElementById('tr-bulk-show').disabled=!BULK_EQUIPS.size||!BULK_SELECTED.size;
+  document.getElementById('tr-bulk-add-graph').disabled=!TR.tag;
+}
+function toggleAllBulk(checked){bulkVisibleParams().filter(p=>bulkParamAvailable(p.key)).forEach(p=>checked?BULK_SELECTED.add(p.key):BULK_SELECTED.delete(p.key));renderBulkOptions();}
+function clearBulkSelection(){BULK_SELECTED.clear();renderBulkOptions();}
+function showBulkTrends(){
+  const candidates=[];let skipped=0,added=0;
+  TR.params.filter(p=>BULK_SELECTED.has(p.key)).forEach(p=>BULK_EQUIPS.forEach(equip=>{
+    if(buildSeriesPoints(p.key,equip).length)candidates.push({key:p.key,equip});else skipped++;
+  }));
+  if(!candidates.length)return;
+  const target=document.getElementById('tr-bulk-target').value;
+  if(target==='separate'){
+    candidates.forEach(s=>{
+      if(BULK_GRAPHS.some(g=>g.series.length===1&&g.series[0].key===s.key&&g.series[0].equip===s.equip))return;
+      newBulkGraph().series.push(s);added++;
+    });syncBulkTargets('separate');
+  }else{
+    const graph=target==='new'?newBulkGraph():BULK_GRAPHS.find(g=>String(g.id)===target);if(!graph)return;
+    candidates.forEach(s=>{if(!graph.series.some(old=>old.key===s.key&&old.equip===s.equip)){graph.series.push(s);added++;}});
+    syncBulkTargets(graph.id);
+  }
+  renderBulkGraphs();
+  document.getElementById('tr-bulk-feedback').textContent=added+' tren ditambahkan.'+(skipped?' '+skipped+' kombinasi tanpa data dilewati.':'')+(candidates.length>added?' Pilihan yang sudah ada tidak diduplikasi.':'');
+}
+function renderBulkGraphs(){
+  destroyBulkCharts();const results=document.getElementById('trend-bulk-results');results.replaceChildren();
+  BULK_GRAPHS.forEach(graph=>{
+    const card=document.createElement('section');card.className='trend-bulk-result';
+    const header=document.createElement('div');header.className='trend-graph-header';
+    const title=document.createElement('h4');title.textContent='Grafik '+graph.id+' · '+graph.series.length+' tren';
+    const remove=document.createElement('button');remove.type='button';remove.className='btn btn-outline';remove.textContent='Hapus Grafik '+graph.id;remove.onclick=()=>removeBulkGraph(graph.id);header.append(title,remove);card.appendChild(header);results.appendChild(card);
+    if(!graph.series.length){const note=document.createElement('p');note.textContent='Centang equipment dan parameter, pilih Grafik '+graph.id+', lalu klik Tampilkan Tren Terpilih.';card.appendChild(note);return;}
+    const series=graph.series.map(s=>{
+      const param=TR.params.find(p=>p.key===s.key);const points=buildSeriesPoints(s.key,s.equip);
+      const unit=trendUnitFor(TR.tag,param.no,param.desc)||(param.desc.match(/\(([^()]*)\)\s*$/)||[])[1]||'';
+      return {...s,param,points,unit,status:computeIsStatus(points)||points.every(p=>p.numeric===null)};
+    });
+    const tags=document.createElement('div');tags.className='trend-series-tags';
+    series.forEach((s,index)=>{const button=document.createElement('button');button.type='button';button.className='btn btn-outline';button.textContent=(s.param.section?s.param.section+' · ':'')+trendSeriesLabel({...s.param,equip:s.equip})+' ×';button.setAttribute('aria-label','Hapus tren '+button.textContent.slice(0,-2)+' dari Grafik '+graph.id);button.onclick=()=>removeBulkGraphSeries(graph.id,index);tags.appendChild(button);});card.appendChild(tags);
+    const dates=[...new Set(series.flatMap(s=>s.points.map(p=>p.date)))].sort();
+    const axisGroups=[];
+    series.forEach(s=>{
+      const key=s.status?'status':s.unit?'unit:'+s.unit:'param:'+s.key;
+      let axis=axisGroups.find(a=>a.key===key);
+      if(!axis){axis={key,id:'y'+axisGroups.length,title:s.status?'Status':s.unit||s.param.desc,status:s.status,values:[]};axisGroups.push(axis);}
+      s.axis=axis;s.byDate=new Map(s.points.map(p=>[p.date,p]));
+      if(s.status)s.points.forEach(p=>{if(!axis.values.includes(p.raw))axis.values.push(p.raw);});
+    });
+    const scroll=document.createElement('div');scroll.className='trend-graph-scroll';const box=document.createElement('div');box.className='trend-bulk-canvas';
+    if(axisGroups.length>2)box.style.minWidth=(420+axisGroups.length*85)+'px';
+    const canvas=document.createElement('canvas');canvas.setAttribute('role','img');canvas.setAttribute('aria-label','Grafik '+graph.id);box.appendChild(canvas);scroll.appendChild(box);card.appendChild(scroll);
+    const scales={x:{ticks:{maxTicksLimit:6}}};
+    axisGroups.forEach((a,index)=>{scales[a.id]={axis:'y',position:index%2?'right':'left',title:{display:true,text:a.title},grid:{drawOnChartArea:index===0},...(a.status?{type:'category',labels:a.values,offset:true}:{})};});
+    const palette=index=>`hsl(${(index*137.508+220)%360}, 68%, 43%)`;
+    BULK_CHARTS.push(new Chart(canvas.getContext('2d'),{
+      type:'line',data:{labels:dates,datasets:series.map((s,index)=>({label:trendSeriesLabel({...s.param,equip:s.equip}),yAxisID:s.axis.id,
+        data:dates.map(date=>{const p=s.byDate.get(date);return p?(s.status?p.raw:p.numeric):null;}),
+        borderColor:palette(index),backgroundColor:palette(index),borderWidth:2.5,pointRadius:dates.length>35?2:3.5,pointHoverRadius:6,pointBorderColor:'#fff',pointBorderWidth:1.5,spanGaps:false,tension:.3,cubicInterpolationMode:'monotone',stepped:s.status}))},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'nearest',intersect:false},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:item=>{const s=series[item.datasetIndex],p=s.byDate.get(dates[item.dataIndex]);return p?[trendSeriesLabel({...s.param,equip:s.equip})+': '+p.raw,'WO: '+p.wo]:'';}}}},scales}
+    }));
+    const chart=BULK_CHARTS[BULK_CHARTS.length-1];
+    [...tags.children].forEach((tag,i)=>{
+      tag.style.borderLeft='4px solid '+palette(i);
+      tag.addEventListener('mouseenter',()=>highlightTrend(chart,i));tag.addEventListener('mouseleave',()=>highlightTrend(chart,null));
+      tag.addEventListener('focus',()=>highlightTrend(chart,i));tag.addEventListener('blur',()=>highlightTrend(chart,null));
+    });
+    const controls=document.createElement('div');card.appendChild(controls);
+    mountTrendControls(controls,chart,axisGroups,graph.view||(graph.view={}));
+    if(axisGroups.length>1){const note=document.createElement('p');note.textContent='Setiap satuan dan status memakai sumbu tersendiri.'+(axisGroups.length>2?' Geser grafik ke samping untuk melihat seluruh sumbu.':'');card.appendChild(note);}
+    const detail=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Lihat nilai dan riwayat';detail.appendChild(summary);
+    const table=document.createElement('table');table.className='dtbl';const thead=table.createTHead(),hr=thead.insertRow();
+    ['Tanggal','Parameter','Equipment','WO','Nilai'].forEach(text=>{const th=document.createElement('th');th.textContent=text;hr.appendChild(th);});const tbody=table.createTBody();
+    series.forEach(s=>s.points.forEach(p=>{const row=tbody.insertRow();[p.date,(s.param.no?s.param.no+' — ':'')+s.param.desc,s.equip,p.wo,p.raw].forEach(text=>row.insertCell().textContent=text);}));
+    detail.appendChild(table);card.appendChild(detail);
+  });
 }
 
 function trendGradient(ctx, hex, h) {
@@ -2095,8 +2320,7 @@ function renderParamTrend() {
 
   // A genuine change of what's being charted invalidates any manually-typed Y
   // range from before (a 40-70 range picked for °C makes no sense once the
-  // parameter switches to kV) — only applyTrendScale()'s own re-render, called
-  // directly from the scale inputs, is allowed to keep them.
+  // parameter switches to kV). Scale controls update their own chart in place.
   resetTrendScaleInputs();
   TREND_LAST_RENDER = { seriesData, soloStatus };
 
@@ -2187,31 +2411,73 @@ function renderTrendCrit(seriesData) {
     : withCrit.map(w => `<div><b>${esc(w.label)}:</b> ${esc(w.crit)}</div>`).join('');
 }
 
-// Reads whatever's currently typed into the Min/Max inputs for one axis and
-// returns a Chart.js scale-option fragment — {} (i.e. auto) when a field is
-// empty or not a number, so an untouched input never overrides Chart.js's own
-// scaling. axisId is 'y' (left) or 'y1' (right).
-function trendScaleOverride(axisId) {
-  const minEl = document.getElementById(axisId === 'y1' ? 'trend-y1min' : 'trend-ymin');
-  const maxEl = document.getElementById(axisId === 'y1' ? 'trend-y1max' : 'trend-ymax');
-  const out = {};
-  if (minEl && minEl.value !== '') { const v = parseFloat(minEl.value); if (isFinite(v)) out.min = v; }
-  if (maxEl && maxEl.value !== '') { const v = parseFloat(maxEl.value); if (isFinite(v)) out.max = v; }
-  return out;
+// Each graph owns its ranges. Changing presentation never modifies stored readings.
+let TREND_VIEW = {};
+function resetTrendScaleInputs(){TREND_VIEW={};}
+function highlightTrend(chart,index){
+  if(!chart||!chart.canvas||!chart.ctx)return;
+  const props=['borderColor','backgroundColor','borderWidth','pointRadius','pointBackgroundColor','pointBorderColor','order'];
+  chart.data.datasets.forEach((dataset,i)=>{
+    if(!dataset._highlightBase)dataset._highlightBase=Object.fromEntries(props.map(key=>[key,dataset[key]]));
+    Object.assign(dataset,dataset._highlightBase);
+    if(index!==null){
+      const active=i===index;
+      dataset.borderColor=active?dataset._highlightBase.borderColor:'rgba(148,163,184,0.18)';
+      dataset.backgroundColor=active?dataset._highlightBase.backgroundColor:'rgba(148,163,184,0.08)';
+      dataset.pointBackgroundColor=active?dataset._highlightBase.borderColor:'rgba(148,163,184,0.18)';
+      dataset.pointBorderColor=active?'#fff':'transparent';
+      dataset.borderWidth=active?4:1;dataset.pointRadius=active?5:1;dataset.order=active?-1:1;
+    }
+  });chart.update('none');
 }
-function resetTrendScaleInputs() {
-  ['trend-ymin', 'trend-ymax', 'trend-y1min', 'trend-y1max'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-}
-// Wired to the scale inputs' oninput — re-draws the chart from what was last
-// rendered without touching TREND_SERIES or re-fetching/deduping any data, so
-// every keystroke stays cheap.
-function applyTrendScale() {
-  if (!TREND_LAST_RENDER) return;
-  renderTrendChart(TREND_LAST_RENDER.seriesData, TREND_LAST_RENDER.soloStatus);
-}
-function resetTrendScale() {
-  resetTrendScaleInputs();
-  applyTrendScale();
+function mountTrendControls(container,chart,axes,state){
+  container.replaceChildren();container.style.display='';container.className='trend-axis-controls';
+  const controls=[];const dates=chart.data.labels;
+  const makePair=(title,key,id,type,values=[])=>{
+    const row=document.createElement('div');row.className='trend-axis-pair';
+    const name=document.createElement('strong');name.textContent=title;row.appendChild(name);
+    const fields={};
+    ['min','max'].forEach(bound=>{
+      const label=document.createElement('label');label.appendChild(document.createTextNode(bound==='min'?'Min':'Max'));
+      const input=document.createElement(type==='category'?'select':'input');input.setAttribute('aria-label',title+' '+bound);
+      if(type==='category'){input.add(new Option('Auto',''));values.forEach((v,i)=>input.add(new Option(v,String(i))));}
+      else {input.type=type;input.step='any';input.placeholder='Auto';}
+      input.value=state[key]?.[bound]??'';label.appendChild(input);row.appendChild(label);fields[bound]=input;
+      input.addEventListener('input',apply);input.addEventListener('change',apply);
+    });
+    container.appendChild(row);controls.push({key,id,type,values,fields});
+  };
+  makePair('Sumbu X (tanggal)','x','x','date');
+  axes.forEach(a=>makePair('Sumbu Y · '+a.title,a.key,a.id,a.status?'category':'number',a.values));
+  const reset=document.createElement('button');reset.type='button';reset.className='trend-scale-reset';reset.textContent='Auto';reset.setAttribute('aria-label','Reset semua sumbu ke Auto');
+  reset.onclick=()=>{controls.forEach(c=>Object.values(c.fields).forEach(input=>input.value=''));apply();};container.appendChild(reset);
+  const message=document.createElement('div');message.className='trend-axis-message';message.setAttribute('role','status');container.appendChild(message);
+  function apply(){
+    if(!chart.canvas||!chart.ctx)return;
+    const pending=[];let error='';
+    controls.forEach(c=>{
+      const min=c.fields.min.value,max=c.fields.max.value;let low,high;
+      Object.values(c.fields).forEach(input=>input.removeAttribute('aria-invalid'));
+      if(c.type==='date'){
+        low=min?dates.findIndex(d=>d>=min):0;
+        high=max?dates.findLastIndex(d=>d<=max):dates.length-1;
+        if((min&&max&&min>max)||low<0||high<0||low>high)error='Rentang tanggal tidak valid atau tidak memiliki data.';
+      }else{
+        low=min===''?undefined:Number(min);high=max===''?undefined:Number(max);
+        if((low!==undefined&&!Number.isFinite(low))||(high!==undefined&&!Number.isFinite(high))||(low!==undefined&&high!==undefined&&(c.type==='category'?low>high:low>=high)))error='Min sumbu Y harus lebih kecil dari Max.';
+      }
+      pending.push({c,min,max,low,high});
+    });
+    message.textContent=error;
+    if(error){controls.forEach(c=>Object.values(c.fields).forEach(input=>input.setAttribute('aria-invalid','true')));return;}
+    pending.forEach(({c,min,max,low,high})=>{
+      state[c.key]={min,max};const scale=chart.options.scales[c.id];delete scale.min;delete scale.max;
+      if(c.type==='date'){if(min)scale.min=low;if(max)scale.max=high;}
+      else if(c.type==='category'){if(min!=='')scale.min=c.values[low];if(max!=='')scale.max=c.values[high];}
+      else {if(low!==undefined)scale.min=low;if(high!==undefined)scale.max=high;}
+    });chart.update('none');
+  }
+  apply();
 }
 
 function renderTrendChart(seriesData, soloStatus) {
@@ -2223,7 +2489,7 @@ function renderTrendChart(seriesData, soloStatus) {
   const scaleRow = document.getElementById('trend-scale-row');
 
   if (soloStatus) {
-    scaleRow.style.display = 'none';   // OK/NG has no magnitude — nothing to scale
+    scaleRow.style.display = ''; // Dates remain adjustable for status history.
     const s = seriesData[0], points = s.points;
     const labels = points.map(p => p.date);
     const colorOf = v => { const g = trendGoodness(v); return g === 1 ? '#10b981' : g === -1 ? '#f43f5e' : '#94a3b8'; };
@@ -2249,6 +2515,7 @@ function renderTrendChart(seriesData, soloStatus) {
         }
       }
     });
+    mountTrendControls(scaleRow,chartParamTrend,[],TREND_VIEW);
     return;
   }
 
@@ -2263,9 +2530,7 @@ function renderTrendChart(seriesData, soloStatus) {
   }
   const axisOf = s => useDualAxis ? (s.unit === units[0] ? 'y' : (s.unit === units[1] ? 'y1' : 'y')) : 'y';
 
-  scaleRow.style.display = 'flex';
-  document.getElementById('trend-scale-unit-lbl').textContent = units.length === 1 && units[0] ? ` (${units[0]})` : '';
-  document.getElementById('trend-scale-r').style.display = useDualAxis ? 'inline-flex' : 'none';
+
 
   const datasets = seriesData.map((s, i) => {
     const byDate = new Map(s.points.map(p => [p.date, p]));
@@ -2273,11 +2538,11 @@ function renderTrendChart(seriesData, soloStatus) {
     return {
       label: trendSeriesLabel(s) + (s.unit ? ' (' + s.unit + ')' : ''),
       data: allDates.map(d => { const p = byDate.get(d); return p ? p.numeric : null; }),
-      spanGaps: true,
+      spanGaps: false,
       borderColor: color, borderWidth: 2.5,
       backgroundColor: seriesData.length === 1 ? trendGradient(ctx, color, 340) : 'transparent',
       fill: seriesData.length === 1,
-      tension: 0.3,
+      tension: 0.3, cubicInterpolationMode: 'monotone',
       pointRadius: 4, pointHoverRadius: 6,
       pointBackgroundColor: color, pointBorderColor: '#fff', pointBorderWidth: 2,
       yAxisID: axisOf(s),
@@ -2287,9 +2552,9 @@ function renderTrendChart(seriesData, soloStatus) {
 
   const scales = {
     x: { grid: { display: false }, ticks: { font: { size: 10.5 } } },
-    y: { position: 'left', title: { display: units.length === 1 && !!units[0], text: units[0] || '' }, grid: { color: '#eef1f6' }, ...trendScaleOverride('y') }
+    y: { position: 'left', title: { display: units.length === 1 && !!units[0], text: units[0] || '' }, grid: { color: '#eef1f6' },  }
   };
-  if (useDualAxis) scales.y1 = { position: 'right', title: { display: true, text: units[1] }, grid: { drawOnChartArea: false }, ...trendScaleOverride('y1') };
+  if (useDualAxis) scales.y1 = { position: 'right', title: { display: true, text: units[1] }, grid: { drawOnChartArea: false },  };
 
   chartParamTrend = new Chart(ctx, {
     type: 'line',
@@ -2297,7 +2562,7 @@ function renderTrendChart(seriesData, soloStatus) {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: seriesData.length > 1, position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 }, usePointStyle: true } },
+        legend: { display: seriesData.length > 1, position: 'bottom', onHover:(event,item,legend)=>highlightTrend(legend.chart,item.datasetIndex), onLeave:(event,item,legend)=>highlightTrend(legend.chart,null), labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 }, usePointStyle: true } },
         tooltip: { callbacks: {
           label: item => {
             const meta = item.dataset.trendMeta, v = item.parsed.y;
@@ -2305,9 +2570,13 @@ function renderTrendChart(seriesData, soloStatus) {
           }
         } }
       },
-      scales
+      scales,
+      interaction:{mode:'nearest',intersect:false}
     }
   });
+  const axes=[{key:'y',id:'y',title:units[0]||'Nilai',status:false}];
+  if(useDualAxis)axes.push({key:'y1',id:'y1',title:units[1],status:false});
+  mountTrendControls(scaleRow,chartParamTrend,axes,TREND_VIEW);
 }
 
 function renderTrendTable(seriesData, soloStatus) {

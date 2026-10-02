@@ -11,18 +11,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260901d"></script>
-<script src="db-helper.js?v=20260901d"></script>
-<script src="storage-helper.js?v=20260901d"></script>
-<script src="approval-helper.js?v=20260901d"></script>
-<script src="submit-guard.js?v=20260901d"></script>
-<script src="pdf-preview.js?v=20260901d"></script>
-<script src="load-merge-modal.js?v=20260901d"></script>
-<script src="cloud-draft.js?v=20260901d"></script>
-<script src="auth-session.js?v=20260901d"></script>
-<script src="technician-auth.js?v=20260901d"></script>
-<script src="img-helper.js?v=20260901d"></script>
-<script src="photo-kit.js?v=20260901d"></script>
+<script src="firebase-config.js?v=20261001b"></script>
+<script src="db-helper.js?v=20261001b"></script>
+<script src="storage-helper.js?v=20261001b"></script>
+<script src="approval-helper.js?v=20261001b"></script>
+<script src="submit-guard.js?v=20261001b"></script>
+<script src="pdf-preview.js?v=20261001b"></script>
+<script src="load-merge-modal.js?v=20261001b"></script>
+<script src="cloud-draft.js?v=20261001b"></script>
+<script src="auth-session.js?v=20261001b"></script>
+<script src="feedback-widget.js?v=20261001b"></script>
+<script src="technician-auth.js?v=20261001b"></script>
+<script src="table-nav.js?v=20261001b"></script>
+<script src="img-helper.js?v=20261001b"></script>
+<script src="photo-kit.js?v=20261001b"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Barlow:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 /* ===== BLUE THEME — light (default) ===== */
@@ -337,6 +339,14 @@ canvas.sigc{border:1.5px solid var(--pb);border-radius:8px;background:#ffffff;wi
 .pd-help b{color:var(--pd-b)}
 @media(max-width:720px){.sw2{grid-template-columns:1fr}.ph h1{font-size:24px}.stats{margin-left:0;width:100%}}
 @media print{.topbar,.tr,.action-row,#pdf-modal-overlay,.autosave-ind{display:none!important}body{background:#fff;color:#000}.sec-body{display:block!important}}
+
+/* mobile-topbar-fix: on a phone the topbar buttons scroll inside the bar
+   instead of widening the whole page (which made every page side-scroll) */
+@media(max-width:640px){
+  .tr{min-width:0;flex-shrink:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tr::-webkit-scrollbar{display:none}
+  .tr>*{flex-shrink:0}
+}
 </style>
 </head>
 <body>
@@ -348,6 +358,7 @@ canvas.sigc{border:1.5px solid var(--pb);border-radius:8px;background:#ffffff;wi
     <a class="btn-back" href="index.html">&#8592; Portal</a>
     <span class="clock" id="clock">--:--:--</span><div class="tsep"></div>
     <button class="theme-btn" id="theme-btn" title="Ganti tema (light / dark)" onclick="cycleTheme()">🌙</button>
+    <button class="btn bo bsm" onclick="pullFromDatabase()" title="Tarik / muat ulang data sesi dari database (mis. data belum lengkap terbaca di device ini)">📥 Tarik Database</button>
     <button class="btn bo bsm" onclick="saveSessionDraft()">💾 Draft</button>
     <button class="btn br bsm" onclick="openPdfModal()">📥 PDF</button>
     <button class="btn bg bsm" onclick="submitToDb()">🗄️ Submit DB</button>
@@ -667,8 +678,10 @@ canvas.sigc{border:1.5px solid var(--pb);border-radius:8px;background:#ffffff;wi
         <button class="btn bo bsm" type="button" onclick="removeRtdCol()">➖ RTD</button>
       </div>
       <div class="tbl-wrap"><table class="ct" id="ul-wtemp"></table></div>
+      <div class="ir-chart-wrap"><canvas class="ir-chart" id="chart-ulw" width="1520" height="440"></canvas><div class="ircl" id="leg-ulw"></div></div>
       <div class="subttl" style="font-size:11px">Bearing Temperature — °C per interval</div>
       <div class="tbl-wrap"><table class="ct" id="ul-btemp"></table></div>
+      <div class="ir-chart-wrap"><canvas class="ir-chart" id="chart-ulb" width="1520" height="440"></canvas><div class="ircl" id="leg-ulb"></div></div>
       <div class="subttl" style="font-size:11px">Local Monitoring &amp; Current — per interval</div>
       <div class="tbl-wrap"><table class="ct" id="solo-local"></table></div>
 
@@ -724,6 +737,7 @@ canvas.sigc{border:1.5px solid var(--pb);border-radius:8px;background:#ffffff;wi
   </div>
 
   <div class="action-row" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;padding-top:12px">
+    <button class="btn bo" onclick="pullFromDatabase()" title="Muat ulang / tarik data sesi dari database jika di device ini data belum lengkap terbaca">📥 Tarik dari Database</button>
     <button class="btn bo" onclick="saveSessionDraft()">💾 Save Draft</button>
     <button class="btn bg" style="font-size:15px;padding:10px 22px" onclick="submitToDb()">&#128202; Submit to Database</button>
     <button class="btn bp" onclick="resetForm()">🔄 Reset</button>
@@ -1029,6 +1043,75 @@ function drawIRChart(prefix){
   if(leg) leg.innerHTML = series.map(s=>`<span><i style="background:${s.color}"></i>${s.label}</span>`).join('');
 }
 function drawAllIRCharts(){ drawIRChart('stator'); drawIRChart('hipot'); }
+
+// ── Solo Run: RTD winding + Bearing temperature vs time ──────────────
+function _seriesColor(i, total){
+  if(total<=IR_SERIES_COLORS.length) return IR_SERIES_COLORS[i%IR_SERIES_COLORS.length];
+  return 'hsl('+Math.round((i*360/Math.max(1,total))%360)+',62%,45%)';
+}
+// Generic time-series line chart (mirrors drawIRChart's look).
+function _drawTempChart(canvasId, legendId, xLabels, series, yLabel){
+  const canvas=document.getElementById(canvasId); if(!canvas) return;
+  const ctx=canvas.getContext('2d'); const CW=canvas.width, CH=canvas.height;
+  ctx.clearRect(0,0,CW,CH);
+  const cs=getComputedStyle(document.documentElement);
+  const gridC=(cs.getPropertyValue('--td-line')||'rgba(120,155,205,.26)').trim();
+  const axC=(cs.getPropertyValue('--t3')||'#6a82a6').trim();
+  const padL=64, padR=16, padT=16, padB=42;
+  const pw=CW-padL-padR, ph=CH-padT-padB;
+  const n=Math.max(2,xLabels.length), stepX=pw/(n-1);
+  const all=series.flatMap(s=>s.points).filter(v=>v!=null && !isNaN(v));
+  const leg=document.getElementById(legendId);
+  if(!all.length){
+    ctx.font='22px "Times New Roman",Georgia,serif'; ctx.fillStyle=axC; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('Isi tabel di atas — grafik muncul otomatis', CW/2, CH/2);
+    if(leg) leg.innerHTML=''; return;
+  }
+  let yMin=Math.min(...all), yMax=Math.max(...all);
+  const pad=(yMax-yMin)*0.15 || 2; yMin=Math.max(0,yMin-pad); yMax=yMax+pad;
+  ctx.font='20px "Times New Roman",Georgia,serif';
+  ctx.textAlign='right'; ctx.textBaseline='middle';
+  for(let i=0;i<=5;i++){
+    const yy=padT+ph-(ph*i/5), val=yMin+(yMax-yMin)*i/5;
+    ctx.strokeStyle=gridC; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(padL+pw,yy); ctx.stroke();
+    ctx.fillStyle=axC; ctx.fillText(val.toFixed(val<10?1:0), padL-8, yy);
+  }
+  ctx.strokeStyle=axC; ctx.lineWidth=1.5; ctx.beginPath();
+  ctx.moveTo(padL,padT); ctx.lineTo(padL,padT+ph); ctx.lineTo(padL+pw,padT+ph); ctx.stroke();
+  ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillStyle=axC;
+  xLabels.forEach((t,i)=>{ ctx.fillText(t, padL+stepX*i, padT+ph+8); });
+  ctx.save(); ctx.translate(16,padT+ph/2); ctx.rotate(-Math.PI/2); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=axC; ctx.fillText(yLabel,0,0); ctx.restore();
+  const Y=v=>padT+ph-((v-yMin)/(yMax-yMin||1)*ph);
+  series.forEach(s=>{
+    ctx.strokeStyle=s.color; ctx.lineWidth=2.5; ctx.beginPath(); let started=false;
+    s.points.forEach((v,i)=>{ if(v==null||isNaN(v))return; const x=padL+stepX*i, yy=Y(v); if(!started){ctx.moveTo(x,yy);started=true;} else ctx.lineTo(x,yy); });
+    ctx.stroke();
+    ctx.fillStyle=s.color;
+    s.points.forEach((v,i)=>{ if(v==null||isNaN(v))return; const x=padL+stepX*i, yy=Y(v); ctx.beginPath(); ctx.arc(x,yy,4,0,Math.PI*2); ctx.fill(); });
+  });
+  if(leg) leg.innerHTML=series.filter(s=>s.points.some(v=>v!=null&&!isNaN(v)))
+    .map(s=>`<span><i style="background:${s.color}"></i>${s.label}</span>`).join('');
+}
+function _num(id){ const s=gv(id); if(s==='')return null; const v=parseFloat(String(s).replace(',','.')); return isNaN(v)?null:v; }
+// Shared by the on-screen charts AND generatePDF() so the report shows exactly
+// what the screen does.
+function _soloTempSeries(){
+  const x = (typeof UL_INT!=='undefined' && UL_INT.length) ? UL_INT.slice() : [];
+  const n = (typeof RTD_N!=='undefined' ? RTD_N : 0);
+  const wSeries=[];
+  for(let i=1;i<=n;i++){
+    wSeries.push({ label:'RTD'+i, color:_seriesColor(i-1,n), points:x.map((_,r)=>_num('ulw_'+r+'_'+i)) });
+  }
+  const bDefs=[['DE-1','de1'],['DE-2','de2'],['NDE-1','nde1'],['NDE-2','nde2']];
+  const bSeries=bDefs.map((d,i)=>({ label:d[0], color:IR_SERIES_COLORS[i%IR_SERIES_COLORS.length],
+    points:x.map((_,r)=>_num('ulb_'+r+'_'+d[1])) }));
+  return { x, wSeries, bSeries };
+}
+function drawSoloTempCharts(){
+  const { x, wSeries, bSeries } = _soloTempSeries();
+  _drawTempChart('chart-ulw','leg-ulw',x,wSeries,'Winding °C');
+  _drawTempChart('chart-ulb','leg-ulb',x,bSeries,'Bearing °C');
+}
 function calcUnbalance(){
   const a=parseFloat(gv('wr-14')), b=parseFloat(gv('wr-25')), c=parseFloat(gv('wr-36'));
   const vs=[a,b,c].filter(x=>!isNaN(x));
@@ -1127,6 +1210,7 @@ function addTimeInterval(){
   if (!lbl) return;
   arr.push(lbl);
   _rebuildG();
+  refreshSoloCharts();
   if (typeof autoSaveNow === 'function') autoSaveNow();
 }
 function removeTimeInterval(){
@@ -1134,12 +1218,14 @@ function removeTimeInterval(){
   if (!confirm('Hapus kolom waktu "' + UL_INT[UL_INT.length - 1] + '" beserta isinya?')) return;
   UL_INT.pop();
   _rebuildG();
+  refreshSoloCharts();
   if (typeof autoSaveNow === 'function') autoSaveNow();
 }
 function addRtdCol(){
   if (RTD_N >= RTD_N_MAX) { note('Maksimum ' + RTD_N_MAX + ' RTD.', 'info'); return; }
   RTD_N++;
   _preserveInputs(document.getElementById('p-g'), () => fillUlWinding());
+  refreshSoloCharts();
   if (typeof autoSaveNow === 'function') autoSaveNow();
 }
 function removeRtdCol(){
@@ -1147,6 +1233,7 @@ function removeRtdCol(){
   if (!confirm('Hapus kolom RTD' + RTD_N + ' beserta isinya?')) return;
   RTD_N--;
   _preserveInputs(document.getElementById('p-g'), () => fillUlWinding());
+  refreshSoloCharts();
   if (typeof autoSaveNow === 'function') autoSaveNow();
 }
 // re-apply saved interval array + RTD count (draft / loaded session) then rebuild.
@@ -1157,10 +1244,30 @@ function applyIntervals(ul, rtdN){
   const n = parseInt(rtdN, 10);
   if (!isNaN(n) && n >= RTD_N_MIN && n <= RTD_N_MAX && n !== RTD_N) { RTD_N = n; changed = true; }
   if (changed) { fillUlWinding(); fillUlBearing(); fillSoloLocal(); }
+  if (typeof refreshSoloCharts==='function') refreshSoloCharts();
 }
 function resetIntervals(){
   UL_INT = UL_INT_DEFAULT.slice(); RTD_N = RTD_N_DEFAULT;
   fillUlWinding(); fillUlBearing(); fillSoloLocal();
+  if (typeof refreshSoloCharts==='function') refreshSoloCharts();
+}
+// LoadMergeModal.beforeApply hook — recreate the dynamic RTD-winding count /
+// solo-run interval columns from the chosen doc(s) BEFORE the generic value
+// sweep. Without this, RTD values in columns beyond the current RTD_N (or
+// intervals beyond UL_INT) are silently dropped when a submitted session is
+// pulled back via "Muat / Lanjutkan dari Database" or the revision banner —
+// loadSession() (the motor-gate session list) already does this itself.
+// Never shrinks (takes the max), so a merge can't destroy existing columns.
+function mwBeforeMerge(docs){
+  let maxN = RTD_N, ul = null;
+  (Array.isArray(docs) ? docs : [docs]).forEach(d => {
+    if (!d) return;
+    const n = parseInt(d.rtdN != null ? d.rtdN : (d.extra && d.extra.rtdN), 10);
+    if (!isNaN(n) && n > maxN) maxN = n;
+    const u = d.ulIntervals || (d.extra && d.extra.ulIntervals);
+    if (Array.isArray(u) && u.length && (!ul || u.length > ul.length)) ul = u.slice();
+  });
+  applyIntervals(ul, maxN);
 }
 
 /* ── checkbox state (air-gap conclusion, bearing pedestal/flanged, DE/NDE comments) ── */
@@ -1328,6 +1435,45 @@ function clrSig(id){const c=document.getElementById(id);c.getContext('2d').clear
 function sigDataUrl(id){const c=document.getElementById(id);const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return d.some(v=>v)?c.toDataURL('image/png'):'';}
 ['sig-insp','sig-vendor','sig-super'].forEach(initSig);
 
+/* ── PDF-only photo compression ───────────────────────────────────────────
+   Evidence photos are kept at PhotoKit's full working resolution (up to
+   1600px) on screen so crop/rotate stays sharp — but the PDF only ever draws
+   a photo inside a small fixed box (2-up ≈ 89x58mm), so embedding that full
+   resolution photo-for-photo is what makes a report with many photos balloon
+   to tens of MB. This re-encodes a copy sized for THAT print box at a print-
+   adequate DPI, just for the embed; the on-screen PHOTOS entry (src/w/h/crop)
+   is never touched. Cached by src+box so re-generating (preview, then the
+   real download) doesn't redo the work twice. */
+const PDF_PHOTO_CACHE = {};
+const PDF_PHOTO_DPI = 160, PDF_PHOTO_Q = 0.7, PDF_PHOTO_MAX_BYTES = 110*1024;
+function pdfPhotoSrc(p, boxWmm, boxHmm){
+  return new Promise(resolve=>{
+    const src = p && (p.src || p.dataUrl);
+    if(!src){ resolve(src); return; }
+    const key = src.length+'~'+src.slice(0,20)+'~'+Math.round(boxWmm)+'x'+Math.round(boxHmm);
+    if(PDF_PHOTO_CACHE[key]){ resolve(PDF_PHOTO_CACHE[key]); return; }
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const nW=img.naturalWidth||1, nH=img.naturalHeight||1;
+        const targetW=Math.max(90, Math.round(boxWmm/25.4*PDF_PHOTO_DPI));
+        const targetH=Math.max(70, Math.round(boxHmm/25.4*PDF_PHOTO_DPI));
+        const scale=Math.min(targetW/nW, targetH/nH, 1);   // never upscale
+        const w=Math.max(1,Math.round(nW*scale)), h=Math.max(1,Math.round(nH*scale));
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        let q=PDF_PHOTO_Q, out=cv.toDataURL('image/jpeg', q);
+        // safety net for an unusually detailed photo even at report size
+        while(out.length*0.75 > PDF_PHOTO_MAX_BYTES && q>0.32){ q-=0.1; out=cv.toDataURL('image/jpeg', q); }
+        PDF_PHOTO_CACHE[key]=out;
+        resolve(out);
+      }catch(e){ resolve(src); }
+    };
+    img.onerror=()=>resolve(src);
+    img.src=src;
+  });
+}
+
 /* ── evidence photos — one gallery per card (section) ── */
 PhotoKit.configure({maxWcm:8.8,maxHcm:13,defaultWcm:8.8,defaultHcm:5.6});
 const PHOTO_SECTIONS = [
@@ -1352,7 +1498,8 @@ function mountPhotoPanels(){
     blk.className='photo-block';
     blk.dataset.key=sec.key;
     blk.innerHTML=
-      '<div class="pbh">📷 Foto Evidence <span class="cnt" id="pcnt-'+sec.key+'">0 foto</span></div>'
+      '<div class="pbh">📷 Foto Evidence <span class="cnt" id="pcnt-'+sec.key+'">0 foto</span>'
+      +'<button class="btn bo bsm" type="button" style="margin-left:8px" onclick="reloadDrivePhotos(\''+sec.key+'\')" title="Ambil ulang foto section ini dari Google Drive">☁️ Muat Foto Drive</button></div>'
       +'<div class="photo-drop sm" onclick="pickPhotos(\''+sec.key+'\',this)">'
       +'<div class="photo-drop-ico">📷</div>'
       +'<div class="photo-drop-txt"><strong>Klik untuk menambah foto</strong> — kamera / galeri, bisa banyak</div></div>'
@@ -1379,9 +1526,17 @@ function removePhotoAt(key,i){ if(!confirm('Hapus foto ini?'))return; PHOTOS[key
 function renderPhotos(key){
   const grid=document.getElementById('pgrid-'+key); if(!grid)return;
   const list=PHOTOS[key]||[];
-  const cnt=document.getElementById('pcnt-'+key); if(cnt) cnt.textContent=list.length+' foto';
-  if(!list.length){ grid.innerHTML='<div class="photo-empty">Belum ada foto.</div>'; return; }
-  grid.innerHTML=list.map((p,i)=>`
+  const pend=(_pendingPhotoUrls[key]||[]).length;
+  const cnt=document.getElementById('pcnt-'+key); if(cnt) cnt.textContent=(list.length+pend)+' foto'+(pend?' ('+pend+' di Drive)':'');
+  const banner = pend
+    ? `<div class="photo-empty" style="border:1px dashed var(--steel);border-radius:8px;padding:8px 10px;margin-bottom:8px;color:var(--steel)">
+         &#128247; ${pend} foto tersimpan di Drive &mdash;
+         <button class="btn bo bsm" type="button" style="margin-left:6px" onclick="loadPendingPhotos()">&#128229; Muat Foto</button>
+         <span id="mw-photo-loading" style="margin-left:8px;font-size:11px"></span>
+       </div>` : '';
+  if(!list.length && !pend){ grid.innerHTML='<div class="photo-empty">Belum ada foto.</div>'; return; }
+  if(!list.length){ grid.innerHTML=banner; return; }
+  grid.innerHTML=banner+list.map((p,i)=>`
     <div class="photo-item">
       <div class="photo-img-wrap"><img src="${p.src}" alt="Foto ${i+1}"></div>
       <div class="photo-ctrl">
@@ -1399,8 +1554,8 @@ function renderAllPhotos(){ PHOTO_KEYS.forEach(renderPhotos); }
 function afterPhotoChange(){ savePhotoDraft(); if(typeof autoSaveNow==='function') autoSaveNow(); }
 function savePhotoDraft(){
   try{
-    const out={};
-    PHOTO_KEYS.forEach(k=>{ out[k]=(PHOTOS[k]||[]).map(p=>({src:p.src,dataUrl:p.src,caption:p.caption,w:p.w,h:p.h,widthCm:p.widthCm,heightCm:p.heightCm})); });
+    const out={ _pending:_pendingPhotoUrls, _loaded:_loadedPhotoUrls };
+    PHOTO_KEYS.forEach(k=>{ out[k]=(PHOTOS[k]||[]).map(p=>({src:p.src,dataUrl:p.src,caption:p.caption,w:p.w,h:p.h,widthCm:p.widthCm,heightCm:p.heightCm,__cdUrl:p.__cdUrl,__cdSig:p.__cdSig})); });
     localStorage.setItem(DRAFT_PHOTOS_KEY, JSON.stringify(out));
   }catch(e){ note('⚠️ Draft tersimpan, tapi foto terlalu besar untuk localStorage.','err'); }
 }
@@ -1409,37 +1564,150 @@ function loadPhotoDraft(){
     const raw=localStorage.getItem(DRAFT_PHOTOS_KEY); if(!raw)return;
     const d=JSON.parse(raw)||{};
     if(Array.isArray(d)){ PHOTOS.a = d; }                 // migrate old flat-array drafts into section A
-    else PHOTO_KEYS.forEach(k=>{ if(Array.isArray(d[k])) PHOTOS[k]=d[k]; });
+    else {
+      PHOTO_KEYS.forEach(k=>{ if(Array.isArray(d[k])) PHOTOS[k]=d[k]; });
+      if(d._pending && typeof d._pending==='object') _pendingPhotoUrls = d._pending;
+      if(d._loaded && typeof d._loaded==='object') _loadedPhotoUrls = d._loaded;
+    }
     renderAllPhotos();
   }catch(e){}
 }
 
+// Signature of a photo's data URL — MUST match cloud-draft.js's photoSig() so a
+// restored-from-Drive photo carries a stamp CloudDraft.save() will accept as
+// "already on Drive, don't re-upload". (length + head + tail of the data URL.)
+function _cdPhotoSig(src){ src = String(src || ''); return src.length + '~' + src.slice(0, 24) + src.slice(-24); }
+
 // Review & Approval / Load-merge photo restore — keyed per section
-async function restorePhotosFromUrls(photoUrls, overwrite){
+// ── LAZY PHOTO LOADING ──────────────────────────────────────────────
+// Photos live on Drive and each one costs a ~2s round-trip through the
+// Apps Script proxy. Downloading them all inline is what made "load a saved
+// session" hang for 20-30s and look like the photos never came back. So on
+// a session/draft open we DEFER: stash the URLs, show the form immediately,
+// render a "📥 N foto di Drive" banner per section, then pull them in the
+// background (parallel, capped). Save/Submit force-loads any still-pending
+// ones first so nothing is lost.
+let _pendingPhotoUrls = {};   // {sectionKey: [{url,caption,w,h,widthCm,heightCm}]}  — not yet downloaded
+let _loadedPhotoUrls  = {};   // {sectionKey: [...]}  — the URL list of the session/draft currently open (for a manual re-fetch)
+function _pendingTotal(){ return Object.values(_pendingPhotoUrls).reduce((n,a)=>n+(a?a.length:0),0); }
+function _pgTarget(key){ return key==='h' ? 'g' : (PHOTO_KEYS.indexOf(key)!==-1 ? key : 'a'); }
+
+// "☁️ Muat Foto Drive" button per section — always visible so it's findable.
+async function reloadDrivePhotos(key){
+  if((_pendingPhotoUrls[key]||[]).length){ await loadPendingPhotos(); return; }
+  let src = (_loadedPhotoUrls[key]||[]).slice();
+  if(!src.length){
+    try{ const reuse = (window.CloudDraft && CloudDraft.getReusePhotoUrls && CloudDraft.getReusePhotoUrls()) || null;
+      if(reuse){ const t=_pgTarget(key); if(Array.isArray(reuse[key])) src=reuse[key].slice(); else if(Array.isArray(reuse[t])) src=reuse[t].slice(); } }catch(e){}
+  }
+  if(!src.length){ note('Tidak ada foto tersimpan di Drive untuk section ini pada sesi yang dimuat.','info'); return; }
+  _pendingPhotoUrls[key] = src;
+  PHOTOS[key] = [];
+  renderPhotos(key);
+  await loadPendingPhotos();
+}
+window.reloadDrivePhotos = reloadDrivePhotos;
+
+async function restorePhotosFromUrls(photoUrls, overwrite, opts){
   if(!photoUrls) return 0;
-  let restored=0;
+  opts = opts || {};
+  let staged=0;
   for(const key of Object.keys(photoUrls)){
     const list=photoUrls[key]; if(!Array.isArray(list)||!list.length) continue;
-    const target = key==='h' ? 'g' : (PHOTO_KEYS.indexOf(key)!==-1 ? key : 'a');   // unknown/legacy-h groups
-    if(!overwrite && (PHOTOS[target]||[]).length) continue;
-    const acc=[];
-    for(const entry of list){
-      if(!entry||!entry.url) continue;
-      try{ const dd=await Storage.toDataUrl(entry.url); if(!dd)continue;
-        acc.push({src:dd,dataUrl:dd,caption:entry.caption||'',w:entry.w,h:entry.h,widthCm:entry.widthCm,heightCm:entry.heightCm}); }
-      catch(e){ console.error('restore 1 foto gagal:',e); }
-    }
-    if(acc.length){ PHOTOS[target] = overwrite ? acc : (PHOTOS[target]||[]).concat(acc); restored+=acc.length; }
+    const target=_pgTarget(key);
+    if(!overwrite && ((PHOTOS[target]||[]).length || (_pendingPhotoUrls[target]||[]).length)) continue;
+    const entries=list.filter(e=>e&&e.url);
+    if(!entries.length) continue;
+    _loadedPhotoUrls[target] = entries.slice();   // remembered for the manual "Muat Foto Drive" button
+    _pendingPhotoUrls[target] = overwrite ? entries.slice() : (_pendingPhotoUrls[target]||[]).concat(entries);
+    if(overwrite) PHOTOS[target]=[];
+    staged += entries.length;
   }
-  if(restored){ renderAllPhotos(); savePhotoDraft(); }
-  return restored;
+  renderAllPhotos();
+  if(opts.defer){
+    // on-demand only — the form shows now, foto ditarik saat tombol
+    // "☁️ Muat Foto Drive" ditekan (atau otomatis sebelum Save/Submit).
+    if(staged) note('📷 '+staged+' foto tersimpan di Drive — klik "☁️ Muat Foto Drive" di section foto untuk menampilkannya.','info');
+    return staged;
+  }
+  return await loadPendingPhotos();
 }
 window.restorePhotosFromUrls = restorePhotosFromUrls;
+
+// Download every deferred Drive photo (parallel, max 4 at a time) into PHOTOS.
+let _photoLoadBusy = false;
+function _photoProg(txt, warn){
+  const el=document.getElementById('autosave-indicator'); if(!el) return;
+  if(txt===null){ el.className='autosave-ind'; return; }
+  el.textContent=txt; el.className='autosave-ind show'+(warn?' warn':'');
+}
+async function loadPendingPhotos(){
+  if(_photoLoadBusy){ note('⏳ Foto sedang diunduh… tunggu sebentar.','info'); return 0; }
+  const jobs=[];
+  for(const key of Object.keys(_pendingPhotoUrls)){
+    (_pendingPhotoUrls[key]||[]).forEach((entry,idx)=>jobs.push({key,entry,idx}));
+  }
+  if(!jobs.length) return 0;
+  _photoLoadBusy = true;
+  const total=jobs.length;
+  let done=0, ok=0, fail=0;
+  _photoProg('⏳ Mengunduh foto 0/'+total+'…');
+  note('⏳ Mengunduh '+total+' foto dari Google Drive… (± '+Math.ceil(total*2.5/3)+' detik)','info');
+  try{
+    const CONC=3;   // gentle on the Apps Script proxy quota
+    for(let i=0;i<jobs.length;i+=CONC){
+      await Promise.all(jobs.slice(i,i+CONC).map(async j=>{
+        let dd=null;
+        for(let attempt=0; attempt<2 && !dd; attempt++){
+          try{ dd=await Storage.toDataUrl(j.entry.url); }
+          catch(e){ if(attempt) console.error('muat 1 foto gagal:',j.entry.url,e); await new Promise(r=>setTimeout(r,300)); }
+        }
+        done++;
+        if(dd){
+          ok++;
+          // carry the Drive URL + a matching signature so a later "Simpan ke
+          // Database" reuses this file instead of uploading it again.
+          (PHOTOS[j.key]=PHOTOS[j.key]||[]).push({src:dd,dataUrl:dd,caption:j.entry.caption||'',w:j.entry.w,h:j.entry.h,widthCm:j.entry.widthCm,heightCm:j.entry.heightCm,__cdUrl:j.entry.url,__cdSig:_cdPhotoSig(dd)});
+          // mark this url consumed so a partial re-run doesn't double-load it
+          const pend=_pendingPhotoUrls[j.key]; if(pend){ const p=pend.indexOf(j.entry); if(p>=0) pend.splice(p,1); }
+          renderPhotos(j.key);            // incremental — user sees each photo appear
+        }else{ fail++; }
+        _photoProg('⏳ Mengunduh foto '+done+'/'+total+(fail?' ('+fail+' gagal)':'')+'…', fail>0);
+      }));
+    }
+    // drop empty pending groups
+    Object.keys(_pendingPhotoUrls).forEach(k=>{ if(!(_pendingPhotoUrls[k]||[]).length) delete _pendingPhotoUrls[k]; });
+    try{ savePhotoDraft(); }catch(e){}
+    renderAllPhotos();
+    if(fail){
+      _photoProg('⚠️ '+ok+'/'+total+' foto — '+fail+' gagal',true);
+      setTimeout(()=>_photoProg(null),6000);
+      note('📷 '+ok+' foto dimuat, '+fail+' gagal. Klik "☁️ Muat Foto Drive" lagi untuk mencoba sisanya.','err');
+    }else{
+      _photoProg('✅ '+ok+' foto dimuat');
+      setTimeout(()=>_photoProg(null),3500);
+      note('📷 '+ok+' foto dimuat dari Drive.','ok');
+    }
+    return ok;
+  }finally{ _photoLoadBusy=false; }
+}
+window.loadPendingPhotos = loadPendingPhotos;
 function buildApprovalPhotos(){
-  if(!photoTotal()) return null;
   const out={};
-  PHOTO_KEYS.forEach(k=>{ if((PHOTOS[k]||[]).length) out[k]=PHOTOS[k].map(p=>({src:p.src,caption:p.caption||'',w:p.w,h:p.h,widthCm:p.widthCm,heightCm:p.heightCm})); });
-  return out;
+  PHOTO_KEYS.forEach(k=>{
+    const live=(PHOTOS[k]||[]).map(p=>({src:p.src,caption:p.caption||'',w:p.w,h:p.h,widthCm:p.widthCm,heightCm:p.heightCm,__cdUrl:p.__cdUrl,__cdSig:p.__cdSig}));
+    const seen=new Set(live.map(p=>p.__cdUrl).filter(Boolean));
+    // Photos still on Drive that weren't downloaded into PHOTOS this session
+    // (deferred restore, or a failed "☁️ Muat Foto Drive"). Pass them through as
+    // URL-only references so a Save Draft / Submit never drops an already-
+    // uploaded photo just because it isn't in memory yet.
+    const pend=(_pendingPhotoUrls[k]||[])
+      .filter(e=>e&&e.url&&!seen.has(e.url))
+      .map(e=>({caption:e.caption||'',w:e.w,h:e.h,widthCm:e.widthCm,heightCm:e.heightCm,__cdUrl:e.url}));
+    const all=live.concat(pend);
+    if(all.length) out[k]=all;
+  });
+  return Object.keys(out).length?out:null;
 }
 
 /* ── vendor PDF attachments — per test session ──────────────────────────
@@ -1591,6 +1859,7 @@ function applyDraftData(d){
   if(d._chk) applyChecks(d._chk);
   upStats(); calcUnbalance(); calcPI('stator'); calcPI('hipot');
   if(typeof calcAirGap==='function'){ calcAirGap('de'); calcAirGap('nde'); }
+  if(typeof refreshSoloCharts==='function') refreshSoloCharts();
 }
 function loadDraft(){
   try{
@@ -1599,11 +1868,14 @@ function loadDraft(){
     note('📂 Draft lokal dimuat.','info');
   }catch(e){}
 }
+let _soloChartT=null;
+function refreshSoloCharts(){ clearTimeout(_soloChartT); _soloChartT=setTimeout(()=>{ try{ drawSoloTempCharts(); }catch(e){} }, 120); }
 document.addEventListener('input', e=>{
   if(!e.target.matches('input,select,textarea')) return;
   scheduleAutoSave();
   const mtx=e.target.closest('#mtx-stator,#mtx-hipot');
   if(mtx) drawIRChart(mtx.id==='mtx-stator'?'stator':'hipot');
+  if(e.target.closest('#ul-wtemp,#ul-btemp')) refreshSoloCharts();
 });
 document.addEventListener('change', e=>{ if(e.target.matches('input,select,textarea')) scheduleAutoSave(); });
 // best-effort flush when leaving / backgrounding the tab
@@ -1795,6 +2067,7 @@ async function submitToDb(){
   const woDate=gv('wo-date'), checkedBy=gv('checked-by');
   if(!woDate){ note('❌ Isi tanggal inspeksi terlebih dahulu.','err'); return; }
   if(!checkedBy){ note('❌ Isi nama Inspection By terlebih dahulu.','err'); return; }
+  if(_pendingTotal()){ note('⏳ Memuat foto dari Drive dulu sebelum submit…','info'); await loadPendingPhotos(); }
 
   const base = DB.collectCheckSheetData('mw', MW_TAG, MW_NAME, 'WITNESS');
   base.assetTag = gv('asset-tag') || MW_TAG;
@@ -2222,16 +2495,58 @@ async function generatePDF(selSet, opts){
     });
     y = pdf.lastAutoTable.finalY + 4;
   }
+  // CSS colour string (#rgb / #rrggbb / hsl(h,s%,l%)) -> [r,g,b] for jsPDF.
+  function cssColorToRgb(s){
+    s=String(s||'').trim();
+    if(s[0]==='#'){
+      if(s.length===4) return [parseInt(s[1]+s[1],16),parseInt(s[2]+s[2],16),parseInt(s[3]+s[3],16)];
+      return [parseInt(s.slice(1,3),16),parseInt(s.slice(3,5),16),parseInt(s.slice(5,7),16)];
+    }
+    const m=s.match(/hsl\(\s*([\d.]+)[, ]+([\d.]+)%[, ]+([\d.]+)%/i);
+    if(m){ const h=(+m[1])/360, sl=(+m[2])/100, l=(+m[3])/100;
+      const q = l<0.5 ? l*(1+sl) : l+sl-l*sl, pp=2*l-q;
+      const tc=t=>{ t=(t+1)%1; if(t<1/6)return pp+(q-pp)*6*t; if(t<1/2)return q; if(t<2/3)return pp+(q-pp)*(2/3-t)*6; return pp; };
+      return [Math.round(tc(h+1/3)*255),Math.round(tc(h)*255),Math.round(tc(h-1/3)*255)];
+    }
+    return [90,100,110];
+  }
+  // Wrapped legend row (colour dot + label) drawn under a chart image.
+  function chartLegend(items){
+    items=(items||[]).filter(it=>it&&it.label);
+    if(!items.length) return;
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(6.8);
+    let lx=M, ly=y+2;
+    items.forEach(it=>{
+      const txt=sanitize(it.label);
+      const tw=pdf.getTextWidth(txt)+7;
+      if(lx+tw > W-M){ lx=M; ly+=4.6; checkY(4.6); }
+      const c=cssColorToRgb(it.color);
+      pdf.setFillColor(c[0],c[1],c[2]); pdf.circle(lx+1.4, ly-0.7, 1.2, 'F');
+      pdf.setTextColor(70,84,104); pdf.text(txt, lx+4, ly);
+      lx+=tw;
+    });
+    y=ly+4;
+  }
+  function chartImage(canvas, series, title){
+    if(!canvas) return;
+    if(!(series||[]).some(s=>s.points.some(v=>v!=null && !isNaN(v)))) return;
+    const iw=W-M*2, ih=iw*(canvas.height/canvas.width);
+    checkY(ih+22);   // keep subtitle + chart + legend together on one page
+    subTitle(title);
+    try{ pdf.addImage(canvas.toDataURL('image/png'),'PNG',M,y,iw,ih); }catch(e){}
+    y+=ih+3;
+    chartLegend(series.filter(s=>s.points.some(v=>v!=null && !isNaN(v))).map(s=>({label:s.label,color:s.color})));
+    y+=2;
+  }
   function irChartImage(prefix){
     const canvas=document.getElementById('ir-chart-'+prefix); if(!canvas) return;
     try{ drawIRChart(prefix); }catch(e){}
-    const any=irChartData(prefix).some(s=>s.points.some(v=>v!=null && !isNaN(v)));
-    if(!any) return;
-    subTitle('Grafik Insulation Resistance (15 s - 10 min)');
-    const iw=W-M*2, ih=iw*(canvas.height/canvas.width);
-    checkY(ih+3);
-    try{ pdf.addImage(canvas.toDataURL('image/png'),'PNG',M,y,iw,ih); }catch(e){}
-    y+=ih+5;
+    chartImage(canvas, irChartData(prefix), 'Grafik Insulation Resistance (15 s - 10 min)');
+  }
+  function soloTempChartImage(canvasId, series, title){
+    const canvas=document.getElementById(canvasId); if(!canvas) return;
+    try{ drawSoloTempCharts(); }catch(e){}
+    chartImage(canvas, series, title);
   }
   function sectionAttach(sec){
     let list=[];
@@ -2243,17 +2558,21 @@ async function generatePDF(selSet, opts){
     pdf.setFontSize(6.8); pdf.setTextColor(120,120,120);
     pdf.text('File dapat dibuka dari check sheet / dashboard Review & Approval.', M+2, y+2.5); y+=6;
   }
-  function sectionPhotos(key){
+  async function sectionPhotos(key){
     const list=(PHOTOS[key]||[]).filter(p=>p&&p.src);
     if(!list.length) return;
     subTitle('Foto Evidence');
     const cw=(W-M*2-4)/2, MAXH=58;
     for(let i=0;i<list.length;i+=2){
       const g=list.slice(i,i+2);
-      const dims=g.map(p=>{ try{ return PhotoKit.fit(p,cw,MAXH); }catch(e){ return {w:cw,h:MAXH}; } });
+      // Re-encode each photo sized for the box it actually prints in (2-up),
+      // never the full PhotoKit working resolution — see pdfPhotoSrc() above.
+      const packed = await Promise.all(g.map(p=>pdfPhotoSrc(p,cw,MAXH)));
+      const gc = g.map((p,gi)=>Object.assign({}, p, {src:packed[gi], dataUrl:packed[gi]}));
+      const dims=gc.map(p=>{ try{ return PhotoKit.fit(p,cw,MAXH); }catch(e){ return {w:cw,h:MAXH}; } });
       const rh=Math.max(...dims.map(d=>d.h));
       checkY(rh+9);
-      g.forEach((p,pi)=>{
+      gc.forEach((p,pi)=>{
         const xo=M+pi*(cw+4);
         try{ PhotoKit.draw(pdf,p,xo,y,cw,MAXH,{align:'center'}); }catch(e){}
         if(p.caption){ pdf.setFont('helvetica','italic'); pdf.setFontSize(7.4); pdf.setTextColor(110,130,160); pdf.text(sanitize(p.caption).slice(0,70), xo, y+rh+3.4); }
@@ -2306,7 +2625,7 @@ async function generatePDF(selSet, opts){
     rtdWindingGrid(S.rtd_winding);
     subTitle('Bearing RTD / TC Sensor (deg C)');
     kvGrid(S.rtd_bearing.rows.filter(r=>r.values && r.values.Value!==undefined));
-    sectionPhotos('a');
+    await sectionPhotos('a');
   }
   if(selSet.has('b')){
     secBar('B. Stator Winding Resistance & Insulation Test');
@@ -2317,7 +2636,7 @@ async function generatePDF(selSet, opts){
     subTitle('IR / PI Matrix (Stator)');
     dataTable(S.stator_mtx, 'Waktu');
     irChartImage('stator');
-    sectionPhotos('b');
+    await sectionPhotos('b');
   }
   if(selSet.has('c')){
     secBar('C. Surge Comparison & Corona Test');
@@ -2325,7 +2644,7 @@ async function generatePDF(selSet, opts){
     kvGrid(S.surge.rows);
     subTitle('Corona Count During Surge Test'); dataTable(S.corona_surge, 'No');
     sectionAttach('c');
-    sectionPhotos('c');
+    await sectionPhotos('c');
   }
   if(selSet.has('d')){
     secBar('D. Tan Delta & Partial Discharge');
@@ -2335,7 +2654,7 @@ async function generatePDF(selSet, opts){
     kvGrid(S.td.rows);
     subTitle('Corona Count During TD / PD Test'); dataTable(S.corona_td, 'No');
     sectionAttach('d');
-    sectionPhotos('d');
+    await sectionPhotos('d');
   }
   if(selSet.has('e')){
     secBar('E. Stator High Potential Test');
@@ -2351,7 +2670,7 @@ async function generatePDF(selSet, opts){
     dataTable(S.hipot_mtx, 'Waktu');
     irChartImage('hipot');
     if(S.corona_hp.rows.length){ subTitle('Corona Count Hi-Pot dc'); dataTable(S.corona_hp, 'Terminal'); }
-    sectionPhotos('e');
+    await sectionPhotos('e');
   }
   if(selSet.has('f')){
     secBar('F. Mechanical Inspection');
@@ -2371,7 +2690,7 @@ async function generatePDF(selSet, opts){
     dataTable(S.bearing_recv, null);
     clrBand('Clearence Check Bearing to Journal Bearing', 'Using Filler Gauge');
     clrCombinedTable(S.bearing_journal, S.bearing_pedestal);
-    sectionPhotos('f');
+    await sectionPhotos('f');
   }
   if(selSet.has('g')){
     secBar('G. Unload / Solo Run Test');
@@ -2381,18 +2700,21 @@ async function generatePDF(selSet, opts){
     kvGrid(S.unload_rec.rows);
     subTitle('Vibration (mm/s)');
     kvGrid(S.unload_vib.rows);
+    const soloSeries = _soloTempSeries();
     subTitle('RTD Winding Temperature (deg C) per Interval');
     dataTable(S.unload_wtemp, null);
+    soloTempChartImage('chart-ulw', soloSeries.wSeries, 'Grafik Tren Suhu Winding RTD vs Waktu');
     subTitle('Bearing Temperature (deg C) per Interval');
     dataTable(S.unload_btemp, null);
+    soloTempChartImage('chart-ulb', soloSeries.bSeries, 'Grafik Tren Suhu Bearing vs Waktu');
     subTitle('Local Monitoring & Current per Interval');
     dataTable(S.unload_local, null);
-    sectionPhotos('g');
+    await sectionPhotos('g');
   }
   if(selSet.has('i')){
     secBar('I. Kesimpulan & Tanda Tangan');
     kvGrid(S.conclusion.rows);
-    sectionPhotos('i');
+    await sectionPhotos('i');
     subTitle('Authorization & Signatures');
     checkY(40);
     const sw=(W-M*2)/3-4;
@@ -2469,7 +2791,36 @@ function _pdfSnapshot(){
 }
 
 /* ── Load & Merge helper (multi-asset: re-init per typed tag) ── */
-function openLoadMerge(){ LoadMergeModal.init({ assetTag: gv('asset-tag') || MW_TAG }); LoadMergeModal.open(); }
+function openLoadMerge(){ LoadMergeModal.init({ assetTag: gv('asset-tag') || MW_TAG, beforeApply: mwBeforeMerge }); LoadMergeModal.open(); }
+
+/* ── "Tarik dari Database" — recover a session that loaded partially on this
+      device (e.g. RTD columns / photos not fully read). If a session is already
+      open, re-fetch it fresh from Firestore and re-apply; otherwise open the
+      Load & Merge picker so the user can choose one. ── */
+async function pullFromDatabase(){
+  const curId = (document.getElementById('session-id') || {}).value || '';
+  const tag = gv('asset-tag') || (_activeMotor && _activeMotor.tag) || MW_TAG;
+  if (curId) {
+    note('🔄 Menarik ulang data sesi ini dari database…', 'info');
+    try {
+      const fresh = await mmSessions(tag);
+      const s = (fresh || []).find(x => x.id === curId);
+      if (s) {
+        _sessions = fresh;
+        _editingSession = null;           // skip the "pindah sesi?" confirm — we are reloading the same one
+        await loadSession(s);
+        note('✅ Data sesi ditarik ulang dari database.', 'ok');
+        return;
+      }
+      note('⚠️ Sesi ini tidak ditemukan lagi di database — silakan pilih dari daftar.', 'err');
+    } catch (e) {
+      console.warn('pullFromDatabase:', e);
+      note('⚠️ Gagal menghubungi database — coba lagi.', 'err');
+      return;
+    }
+  }
+  openLoadMerge();
+}
 
 /* ════════════════════════════════════════════════════════════════════
    PHASE 1 — MOTOR MASTER (koleksi `motor_master`) + gate popup pilih motor
@@ -2625,6 +2976,7 @@ async function mgLoadSession(i){ if (_sessions[i]) await loadSession(_sessions[i
 // new/updated draft in the session tab bar + banner (a fresh "Sesi Baru" has no
 // doc until this runs, so its tab would otherwise not appear).
 async function saveSessionDraft(){
+  if(_pendingTotal()){ note('⏳ Memuat foto dari Drive dulu sebelum menyimpan…','info'); await loadPendingPhotos(); }
   await CloudDraft.save();
   const sid = (CloudDraft.getActiveId && CloudDraft.getActiveId()) || '';
   if (sid) {
@@ -2660,12 +3012,14 @@ function clearSessionForm(){
   Object.keys(ST).forEach(k => delete ST[k]);
   document.querySelectorAll('.rb').forEach(b => b.classList.remove('a'));
   if (typeof PHOTOS === 'object') Object.keys(PHOTOS).forEach(k => { PHOTOS[k] = []; });
+  _pendingPhotoUrls = {}; _loadedPhotoUrls = {};
   if (typeof renderAllPhotos === 'function') renderAllPhotos();
   if (typeof applyAttachList === 'function') applyAttachList([]);
   if (typeof applyChecks === 'function') applyChecks({});
   if (typeof resetIntervals === 'function') resetIntervals();
   if (typeof renderAirGap === 'function') { renderAirGap('de'); renderAirGap('nde'); renderBearingMeas(); }
   upStats(); if (typeof drawAllIRCharts === 'function') drawAllIRCharts();
+  if (typeof drawSoloTempCharts === 'function') drawSoloTempCharts();
 }
 
 async function loadSession(s){
@@ -2688,7 +3042,8 @@ async function loadSession(s){
 
   // photos
   if (s.photoUrls && typeof window.restorePhotosFromUrls === 'function') {
-    try { await window.restorePhotosFromUrls(s.photoUrls, true); } catch (e) { console.warn('restore foto sesi:', e); }
+    // defer: stash the URLs + show the form now; photos pull in the background
+    try { await window.restorePhotosFromUrls(s.photoUrls, true, { defer:true }); } catch (e) { console.warn('restore foto sesi:', e); }
   }
   // vendor PDF attachments (submitted -> s.attachments; draft -> s.extra.attachments)
   applyAttachList(s.attachments || (s.extra && s.extra.attachments) || []);
@@ -2707,6 +3062,7 @@ async function loadSession(s){
   renderSessionBanner();
   renderSessionTabs();
   if (typeof drawAllIRCharts === 'function') drawAllIRCharts();
+  if (typeof drawSoloTempCharts === 'function') drawSoloTempCharts();
 }
 
 function renderSessionBanner(){
@@ -2714,10 +3070,11 @@ function renderSessionBanner(){
   if (!b) return;
   if (!_editingSession) { b.style.display = 'none'; return; }
   b.style.display = 'flex';
+  const reload = ' <button class="btn bo bsm" type="button" title="Tarik ulang data sesi ini dari database jika ada yang belum lengkap terbaca" onclick="pullFromDatabase()">📥 Tarik ulang</button>';
   if (_editingSession.isDraft) {
-    b.innerHTML = '☁️ <b>Melanjutkan draft sesi</b> — Simpan / Submit saat siap. <button class="btn bo bsm" type="button" onclick="mgNewSession()">➕ Test baru</button>';
+    b.innerHTML = '☁️ <b>Melanjutkan draft sesi</b> — Simpan / Submit saat siap. <button class="btn bo bsm" type="button" onclick="mgNewSession()">➕ Test baru</button>' + reload;
   } else {
-    b.innerHTML = '📋 <b>Sesi test tersimpan</b> (' + _esc(Approvals.STATUS_LABELS[_editingSession.status] || _editingSession.status) + ') — Submit akan menanyakan: revisi sesi ini atau sesi baru. <button class="btn bo bsm" type="button" onclick="mgNewSession()">➕ Test baru</button>';
+    b.innerHTML = '📋 <b>Sesi test tersimpan</b> (' + _esc(Approvals.STATUS_LABELS[_editingSession.status] || _editingSession.status) + ') — Submit akan menanyakan: revisi sesi ini atau sesi baru. <button class="btn bo bsm" type="button" onclick="mgNewSession()">➕ Test baru</button>' + reload;
   }
 }
 function renderSessionTabs(){
@@ -3001,7 +3358,7 @@ function applyMotor(m, opts){
   const chipT = document.getElementById('active-motor-tag');
   if (chip && chipT) { chipT.textContent = m.tag || '—'; chip.style.display = ''; }
   const t = m.tag || MW_TAG;
-  try { LoadMergeModal.init({ assetTag: t }); } catch (e) {}
+  try { LoadMergeModal.init({ assetTag: t, beforeApply: mwBeforeMerge }); } catch (e) {}
   try { SubmitGuard.init({ assetTag: t }); } catch (e) {}
   try { localStorage.setItem('mw_active_motor', mmSlug(t)); } catch (e) {}
   if (!opts.keepGate) {
@@ -3155,17 +3512,19 @@ renderAllPhotos();
 renderAttach();
 upStats();
 drawAllIRCharts();
+drawSoloTempCharts();
 // Saving a session to the database is a deliberate action (💾 button -> CloudDraft),
 // unified with the "Muat / Lanjutkan dari Database" modal + the motor gate's session
 // list. Local autosave (localStorage) still runs on every edit; there is no parallel
 // auto-cloud-save.
-LoadMergeModal.init({ assetTag: MW_TAG });
+LoadMergeModal.init({ assetTag: MW_TAG, beforeApply: mwBeforeMerge });
 LoadMergeModal.initRevisionBanner();
 SubmitGuard.init({ assetTag: MW_TAG });
 TechnicianAuth.init({ checkedByFieldId: 'checked-by' });
 refreshAdminUI(true);
 CloudDraft.init({
   formId:'mw', assetTag:()=>gv('asset-tag')||MW_TAG, assetName:MW_NAME, frequency:'WITNESS',
+  photos: buildApprovalPhotos,   // {sectionKey: [{src,caption,w,h,widthCm,heightCm}]} — so "Simpan ke Database" carries the evidence photos too
   collectExtra: () => ({
     attachments: attachForSave(),
     checkStates: Object.assign({}, CHK),
@@ -3178,7 +3537,7 @@ CloudDraft.init({
     if (x && (x.ulIntervals || x.rtdN)) applyIntervals(x.ulIntervals, x.rtdN);
   },
 });
-document.getElementById('asset-tag').addEventListener('change', ()=>{ const t=gv('asset-tag')||MW_TAG; LoadMergeModal.init({ assetTag:t }); SubmitGuard.init({ assetTag:t }); });
+document.getElementById('asset-tag').addEventListener('change', ()=>{ const t=gv('asset-tag')||MW_TAG; LoadMergeModal.init({ assetTag:t, beforeApply: mwBeforeMerge }); SubmitGuard.init({ assetTag:t }); });
 // Phase 1 — pilih / daftar motor sebelum mengisi check sheet
 initMotorFlow();
 </script>

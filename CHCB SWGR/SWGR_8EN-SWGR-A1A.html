@@ -8,18 +8,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="../firebase-config.js?v=20260901d"></script>
-<script src="../db-helper.js?v=20260901d"></script>
-<script src="../storage-helper.js?v=20260901d"></script>
-<script src="../approval-helper.js?v=20260901d"></script>
-<script src="../submit-guard.js?v=20260901d"></script>
-<script src="../pdf-preview.js?v=20260901d"></script>
-<script src="../load-merge-modal.js?v=20260901d"></script>
-<script src="../cloud-draft.js?v=20260901d"></script>
-<script src="../auth-session.js?v=20260901d"></script>
-<script src="../technician-auth.js?v=20260901d"></script>
-<script src="../img-helper.js?v=20260901d"></script>
-<script src="../photo-kit.js?v=20260901d"></script>
+<script src="../firebase-config.js?v=20261001b"></script>
+<script src="../db-helper.js?v=20261001b"></script>
+<script src="../storage-helper.js?v=20261001b"></script>
+<script src="../approval-helper.js?v=20261001b"></script>
+<script src="../submit-guard.js?v=20261001b"></script>
+<script src="../pdf-preview.js?v=20261001b"></script>
+<script src="../load-merge-modal.js?v=20261001b"></script>
+<script src="../cloud-draft.js?v=20261001b"></script>
+<script src="../auth-session.js?v=20261001b"></script>
+<script src="../feedback-widget.js?v=20261001b"></script>
+<script src="../technician-auth.js?v=20261001b"></script>
+<script src="../img-helper.js?v=20261001b"></script>
+<script src="../photo-kit.js?v=20261001b"></script>
+<script src="../table-nav.js?v=20261001b"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -82,6 +84,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--txt);min-height:10
 .ct{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
 .ct th{background:var(--navy);color:var(--sky2);padding:6px 6px;text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.08);position:sticky;top:0}
 .ct th.tl{text-align:left}
+.ct th .th-lbl{display:block;margin-top:2px;font-size:8px;font-weight:400;letter-spacing:0;text-transform:none;color:#fff;opacity:.72;white-space:normal;max-width:96px}
 .ct td{padding:5px 6px;border-bottom:1px solid var(--bdr2);background:var(--surf);vertical-align:middle;text-align:center;border-right:1px solid var(--bdr2)}
 .ct td:last-child,.ct th:last-child{border-right:none}
 .ct td.lbl{text-align:left;color:var(--txt);font-size:11px;min-width:220px;max-width:340px}
@@ -132,7 +135,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--txt);min-height:10
 .photo-cap{width:100%;border:none;border-top:1px solid var(--bdr2);padding:6px 8px;font-size:12px;font-family:inherit;background:transparent}
 .photo-cap:focus{outline:none;background:var(--bg2)}
 .photo-empty{color:var(--txt4);font-size:12px;text-align:center;padding:10px}
-@media(max-width:640px){.tb-sub,.tb-sep{display:none}.btn-draft{display:none}}
+@media(max-width:640px){.tb-sub,.tb-sep{display:none}.btn-draft.btn-sm{display:none}}
+
+/* mobile-topbar-fix: on a phone the topbar buttons scroll inside the bar
+   instead of widening the whole page (which made every page side-scroll) */
+@media(max-width:640px){
+  .tb-right{min-width:0;flex-shrink:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tb-right::-webkit-scrollbar{display:none}
+  .tb-right>*{flex-shrink:0}
+}
 </style>
 </head>
 <body>
@@ -447,8 +458,13 @@ window.SWGR_CONFIG = {
         {
           "no": "11",
           "desc": "Breaker Safety Locks — Rating Interference Interlock",
-          "type": "subhead",
-          "field": "VCB No."
+          "type": "subhead"
+        },
+        {
+          "desc": "VCB No.",
+          "crit": "",
+          "type": "value",
+          "ph": "VCB No."
         },
         {
           "desc": "Interference lock plate installed",
@@ -467,12 +483,14 @@ window.SWGR_CONFIG = {
         {
           "desc": "Negative interlock roller appearance — 0.531 in minimum position to open breaker",
           "crit": "0.531 in min",
-          "type": "single"
+          "type": "value",
+          "ph": "0.531 in"
         },
         {
           "desc": "Negative interlock roller appearance — 0.670 in position to adjust interlock link",
           "crit": "0.670 in",
-          "type": "single"
+          "type": "value",
+          "ph": "0.670 in"
         },
         {
           "desc": "Negative Interlock mounting bracket bolts tightened",
@@ -497,11 +515,19 @@ window.SWGR_CONFIG = {
         {
           "no": "13",
           "desc": "Positive Interlock",
-          "type": "subhead",
-          "fields": [
-            "Open",
-            "Close"
-          ]
+          "type": "subhead"
+        },
+        {
+          "desc": "Positive Interlock — Open position",
+          "crit": "",
+          "type": "value",
+          "ph": "Open"
+        },
+        {
+          "desc": "Positive Interlock — Close position",
+          "crit": "",
+          "type": "value",
+          "ph": "Close"
         },
         {
           "desc": "No sign of mechanism bend, breakage",
@@ -527,12 +553,14 @@ window.SWGR_CONFIG = {
         {
           "desc": "Closing Spring Discharge interlock roller appearance — 0.561 in minimum position to discharge spring",
           "crit": "0.561 in min",
-          "type": "single"
+          "type": "value",
+          "ph": "0.561 in"
         },
         {
           "desc": "Closing Spring Discharge interlock roller appearance — 0.995 in position to permit close latch reset",
           "crit": "0.995 in",
-          "type": "single"
+          "type": "value",
+          "ph": "0.995 in"
         },
         {
           "desc": "Closing Spring Discharge Interlock mounting bracket bolts tightened",
@@ -612,7 +640,11 @@ function renderCompartments(){
       <input type="text" id="cmps-${i}" placeholder="Breaker S/N (opsional)">
     </div>`).join('');
 }
-function compHead(cols){return cols.map(c=>`<th title="${esc(c.label||'')}">${esc(c.code||'')}</th>`).join('');}
+// column header shows the compartment CODE + its description/feeder label
+// (e.g. "100B" over "E-1") so the matrix is readable without cross-checking
+// the compartment legend.
+function compHead(cols){return cols.map(c=>`<th title="${esc(c.label||'')}">${esc(c.code||'')}${c.label?`<span class="th-lbl">${esc(c.label)}</span>`:''}</th>`).join('');}
+const colHdr=c=>((c&&c.code)||'')+((c&&c.label)?'\n'+c.label:'');
 
 // ── INTERLOCK REFERENCE DIAGRAMS ──
 const DIAGRAMS=CFG.interlockDiagrams||[];
@@ -674,6 +706,11 @@ function matrixTable(sec,si,cols){
     }
     const cells=it.type==='single'
       ? `<td colspan="${cols.length}">${mkTog('t-'+si+'-'+ii+'-x')}</td>`
+      : it.type==='value'
+      // one free-text input per breaker column instead of an OK/NG toggle —
+      // for a MEASURED value (interlock roller dimension, VCB No., positive-
+      // interlock Open/Close position, ...) rather than a pass/fail.
+      ? cols.map((c,ci)=>`<td><input class="mi wide" type="text" id="val-${si}-${ii}-${ci}"${it.ph?` placeholder="${esc(it.ph)}"`:''}></td>`).join('')
       : cols.map((c,ci)=>`<td>${mkTog('t-'+si+'-'+ii+'-'+ci)}</td>`).join('');
     h+=`<tr><td class="no">${it.no||''}</td><td class="lbl">${esc(it.desc)}</td><td class="crit">${esc(it.crit||'')}</td>
       ${cells}<td><input class="rmk" type="text" id="rmk-${si}-${ii}"></td></tr>`;
@@ -834,6 +871,7 @@ function buildSheets(){
         if(it.type==='remark'){rows.push({no:it.no||'',desc:it.desc,crit:'',values:{Remark:v('rmk-'+si+'-'+ii)||'—'}});return;}
         const vals={};
         if(it.type==='single'){colNames.forEach(cn=>vals[cn]=tv('t-'+si+'-'+ii+'-x'));}
+        else if(it.type==='value'){cols.forEach((c,ci)=>vals[c.code||ci]=iv('val-'+si+'-'+ii+'-'+ci));}
         else{cols.forEach((c,ci)=>vals[c.code||ci]=tv('t-'+si+'-'+ii+'-'+ci));}
         vals['Remark']=v('rmk-'+si+'-'+ii)||'—';
         rows.push({no:it.no||'',desc:it.desc,crit:it.crit||'',values:vals});
@@ -934,19 +972,20 @@ async function generatePDF(opts={}){
     const cols=colsFor(sec);const kind=sec.kind||'matrix';
     nPage();secBar(sec.title+(sec.crit?'   ['+sec.crit+']':''));
     if(kind==='matrix'){
-      const head=['No','Check Item','Criteria',...cols.map(c=>c.code||''),'Remark'];
+      const head=['No','Check Item','Criteria',...cols.map(colHdr),'Remark'];
       const body=[];
       (sec.items||[]).forEach((it,ii)=>{
         if(it.type==='subhead'){body.push([{content:pdfSafe(it.desc),colSpan:head.length,styles:{fontStyle:'bold',fillColor:[219,234,254],textColor:NAVY,halign:'left'}}]);return;}
         if(it.type==='remark'){body.push([it.no||'',{content:pdfSafe(it.desc),colSpan:2},{content:v('rmk-'+si+'-'+ii)||'—',colSpan:cols.length+1,styles:{halign:'left'}}]);return;}
         if(it.type==='single'){body.push([it.no||'',pdfSafe(it.desc),pdfSafe(it.crit||''),{content:tv('t-'+si+'-'+ii+'-x'),colSpan:cols.length,styles:{halign:'center',fontStyle:'bold'}},v('rmk-'+si+'-'+ii)||'—']);return;}
-        body.push([it.no||'',pdfSafe(it.desc),pdfSafe(it.crit||''),...cols.map((c,ci)=>tv('t-'+si+'-'+ii+'-'+ci)),v('rmk-'+si+'-'+ii)||'—']);
+        const rowVals=it.type==='value'?cols.map((c,ci)=>iv('val-'+si+'-'+ii+'-'+ci)):cols.map((c,ci)=>tv('t-'+si+'-'+ii+'-'+ci));
+        body.push([it.no||'',pdfSafe(it.desc),pdfSafe(it.crit||''),...rowVals,v('rmk-'+si+'-'+ii)||'—']);
       });
       pdf.autoTable({...theme,startY:y,head:[head],body,columnStyles:{0:{cellWidth:7},1:{cellWidth:64},2:{cellWidth:26},[head.length-1]:{cellWidth:34}}});
     }else if(kind==='resistance'||kind==='rtd'){
       const rowKeys=kind==='rtd'?Array.from({length:sec.rtdCount||13},(_,i)=>'RTD'+(i+1)):(sec.rows||['T1 - T2','T2 - T3','T3 - T1']);
       const pfx=kind==='rtd'?'rtd':'res';
-      pdf.autoTable({...theme,startY:y,head:[[kind==='rtd'?'RTD':'',...cols.map(c=>c.code||'')]],
+      pdf.autoTable({...theme,startY:y,head:[[kind==='rtd'?'RTD':'',...cols.map(colHdr)]],
         body:rowKeys.map((rk,ri)=>[rk,...cols.map((c,ci)=>iv(pfx+'-'+si+'-'+ri+'-'+ci))]).concat([['Remark '+(v('rmk-'+si+'-r')||'—')]]),
         styles:{...theme.styles,fontSize:7}});
     }else if(kind==='megger'){
@@ -955,7 +994,7 @@ async function generatePDF(opts={}){
       body.push(['PI',...cols.map((c,ci)=>iv('pi-'+si+'-'+ci))]);
       body.push(['DAR',...cols.map((c,ci)=>iv('dar-'+si+'-'+ci))]);
       body.push(['Remark: '+(v('rmk-'+si+'-r')||'—')]);
-      pdf.autoTable({...theme,startY:y,head:[['Time',...cols.map(c=>c.code||'')]],body,styles:{...theme.styles,fontSize:7}});
+      pdf.autoTable({...theme,startY:y,head:[['Time',...cols.map(colHdr)]],body,styles:{...theme.styles,fontSize:7}});
     }
     y=pdf.lastAutoTable.finalY+5;
   });
@@ -1055,7 +1094,7 @@ LoadMergeModal.init({assetTag:CFG.assetTag});
 SubmitGuard.init({assetTag:CFG.assetTag});
 LoadMergeModal.initRevisionBanner();
 TechnicianAuth.init({checkedByFieldId:'checked-by'});
-CloudDraft.init({formId:CFG.formId,assetTag:CFG.assetTag,assetName:CFG.assetName,frequency:CFG.frequency||'YEARLY',photos:()=>PHOTOS.evidence});
+CloudDraft.init({formId:CFG.formId,assetTag:CFG.assetTag,assetName:CFG.assetName,frequency:CFG.frequency||'YEARLY',photos:()=>({evidence:PHOTOS.evidence})});
 
 setTimeout(async()=>{try{const d=await DB.loadLastSubmission(CFG.assetTag);if(d)showNote('📂 Data terakhir tersedia via "Muat / Lanjutkan dari Database".','info');}catch(e){}},900);
 </script>

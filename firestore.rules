@@ -1,0 +1,206 @@
+rules_version = '2';
+
+// ============================================================
+//  Firestore Security Rules — project database-eic7
+//
+//  SOURCE OF TRUTH: this file. Deploy with either
+//    firebase deploy --only firestore:rules
+//  or copy-paste into Firebase Console -> Firestore Database ->
+//  Rules -> Publish. See SECURITY.md for the full rollout + test
+//  checklist.
+//
+//  ---------------------------------------------------------------
+//  LEVEL 1 HARDENING (2026-09)
+//  This app currently has NO per-request authentication (no Firebase
+//  Authentication yet — that is "Level 2" in SECURITY.md). Firestore
+//  rules therefore CANNOT check WHO is making a write, only the SHAPE
+//  and a few invariants of the data. What Level 1 rules still buy us:
+//    - per-collection allow-list (an unknown collection is denied)
+//    - dashboard_config is read-only to clients
+//    - a self-registered account can never grant itself role 'admin'
+//    - a profile/password/signature update can never change an
+//      account's role (no privilege escalation via Settings)
+//    - a checksheet "overwrite" can never rewrite createdAt (keeps
+//      dedupe / trend charts / sort order honest)
+//    - drafts must actually look like drafts
+//  What Level 1 rules DO NOT buy us (needs Level 2 / Firebase Auth):
+//    - stopping an anonymous client from reading all data
+//    - stopping deletes (dedupe / admin purge / owner-retract all run
+//      client-side today with no way to prove a role)
+//    - hiding password hashes on read (login reads the user doc and
+//      compares the hash in the browser)
+//  The real Level 1 perimeter is Cloudflare Access (SSO gate in front
+//  of the whole site) + Firebase App Check. See SECURITY.md.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers ----
+    function isString(v) { return v is string; }
+
+    function roleUnchanged() {
+      return (('role' in resource.data) == ('role' in request.resource.data))
+        && (!('role' in request.resource.data)
+            || request.resource.data.role == resource.data.role);
+    }
+
+    // ---------------------------------------------------------
+    //  checksheets — append-only PM submission store.
+    //   create : DB.save() from every check sheet + manual upload
+    //   update : DB.update() overwrite-same-visit + DB.attachFiles()
+    //            (merge photoUrls/pdfUrl)
+    //   delete : still open — dedupe / admin purge / owner-retract
+    //            run in the browser with no role proof. Closes at L2.
+    // ---------------------------------------------------------
+    match /checksheets/{doc} {
+      allow read: if true;
+      // create left open: an external POMI mini-app feed (PM Unit 7, etc.)
+      // also writes here and we can't test its exact payload. The invariant
+      // worth enforcing is on UPDATE — an "overwrite same visit" must never
+      // rewrite createdAt (dedupe / trend charts / sort order depend on it).
+      allow create: if true;
+      allow update: if !('createdAt' in resource.data)
+                    || request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if true;   // TODO(level-2): admin/owner only
+    }
+
+    // ---------------------------------------------------------
+    //  approvals — review/approval workflow state (mutated in place).
+    //   statuses: submitted -> reviewed -> approved
+    //             (or -> returned_to_technician -> revised)
+    // ---------------------------------------------------------
+    match /approvals/{doc} {
+      allow read: if true;
+      allow create: if isString(request.resource.data.checksheetId)
+                    && request.resource.data.status in ['submitted', 'reviewed'];
+      allow update: if request.resource.data.status in
+                    ['submitted', 'reviewed', 'approved', 'returned_to_technician', 'revised'];
+      allow delete: if true;   // TODO(level-2): admin/owner only
+    }
+
+    // ---------------------------------------------------------
+    //  checksheet_drafts — "Simpan ke Database (Lanjut Nanti)".
+    //  CloudDraft.save() always writes status:'draft'; deleted on
+    //  successful final submit or on Reset.
+    // ---------------------------------------------------------
+    match /checksheet_drafts/{doc} {
+      allow read: if true;
+      allow create, update: if request.resource.data.status == 'draft';
+      allow delete: if true;
+    }
+
+    // ---------------------------------------------------------
+    //  dashboard_users — login accounts (dashboards + technician-auth).
+    //  No Firebase Auth yet, so anyone can still create/read these;
+    //  the two invariants we CAN enforce:
+    //   - self-registration can pick technician / techop2 / supervisor
+    //     but NEVER admin (admin stays Console-provisioned)
+    //   - an update (profile / password / signature / team) can never
+    //     change the account's role
+    //  read stays open: login queries this collection and verifies the
+    //  password hash in the browser (removed entirely at Level 2).
+    // ---------------------------------------------------------
+    match /dashboard_users/{doc} {
+      allow read: if true;
+      allow create: if request.resource.data.role in ['technician', 'techop2', 'supervisor'];
+      allow update: if roleUnchanged();
+      allow delete: if false;   // accounts are only removed from the Console
+    }
+
+    // ---------------------------------------------------------
+    //  dashboard_config — e.g. dashboard_config/registration.code
+    //  (the elevated-role registration access code). App only ever
+    //  READS this; it is created/edited by an admin in the Console.
+    // ---------------------------------------------------------
+    match /dashboard_config/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------
+    //  weekly_dashboard/{name} (+ /workOrders/{wo} subcollection) —
+    //  "Weekly Report Dashboard EIC7.html" manual cloud sync. Separate
+    //  mini-app, its own client-side password gate. Left permissive at
+    //  Level 1; revisit at Level 2 with the rest.
+    // ---------------------------------------------------------
+    match /weekly_dashboard/{name} {
+      allow read, write: if true;
+      match /workOrders/{wo} {
+        allow read, write: if true;
+      }
+    }
+
+    // ---------------------------------------------------------
+    //  motor_master — Motor_Witness_Test_Vendor.html's registered-motor
+    //  list (load / register / edit / delete a motor). Was allowed by the
+    //  Console-only ruleset that ran before this file was first deployed
+    //  (2026-09-24) but was never added here, so that deploy silently cut
+    //  it off ("Gagal memuat daftar motor"). Same permissive rule as the
+    //  old Console ruleset; tighten at Level 2 with the rest.
+    // ---------------------------------------------------------
+    match /motor_master/{doc} {
+      allow read, write: if true;
+    }
+
+    // ---------------------------------------------------------
+    //  project_schedules — Project_Progress_Monitor.html, one doc per
+    //  project (tasks, baselines, progress log, issues, change log).
+    //  Access model (enforced IN THE APP, from the shared dashboard_users
+    //  login): anyone with the link reads; only the creator (`owner.user`),
+    //  accounts whose team+area match the project's `team`/`area`, and
+    //  supervisors and admins edit; only creator/admin delete. Rules cannot see who is
+    //  logged in until Level 2 (Firebase Auth), so what they CAN enforce:
+    //   - a project must be created with an owner + team + area
+    //   - ownership and createdAt can never be rewritten by an update
+    //   - optimistic concurrency: `rev` must strictly increase, so a stale
+    //     client can never silently roll a newer version back
+    // ---------------------------------------------------------
+    function validProject(d) {
+      return isString(d.name) && d.rev is int && d.tasks is list
+        && d.owner is map && isString(d.owner.user) && d.owner.user.size() > 0
+        && isString(d.team) && isString(d.area);
+    }
+    match /project_schedules/{doc} {
+      allow read: if true;
+      allow create: if validProject(request.resource.data);
+      allow update: if validProject(request.resource.data)
+                    && request.resource.data.rev > resource.data.rev
+                    && request.resource.data.owner.user == resource.data.owner.user
+                    && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if true;   // TODO(level-2): owner/admin only (app-gated today)
+    }
+
+    // ---------------------------------------------------------
+    //  feedback_reports — "Laporkan Bug / Masukan" (feedback-widget.js,
+    //  loaded on every check sheet + dashboard). Anyone can file a report
+    //  (no login needed in the field); Feedback_Reports.html lists them and
+    //  lets admin/supervisor change status (app-gated until Level 2).
+    //   - a report must be created as status 'baru' with a title, a known
+    //     type, and a size-capped body
+    //   - an update can only move status inside the known set and can
+    //     never rewrite createdAt / the reporter / the original text
+    // ---------------------------------------------------------
+    function fbStatus(s) { return s in ['baru', 'ditinjau', 'dikerjakan', 'selesai', 'ditolak']; }
+    match /feedback_reports/{doc} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'baru'
+                    && isString(request.resource.data.title)
+                    && request.resource.data.title.size() > 0
+                    && request.resource.data.title.size() <= 200
+                    && isString(request.resource.data.description)
+                    && request.resource.data.description.size() <= 5000
+                    && request.resource.data.type in ['bug', 'kekurangan', 'saran', 'tampilan', 'lainnya'];
+      allow update: if fbStatus(request.resource.data.status)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.reporter == resource.data.reporter
+                    && request.resource.data.title == resource.data.title
+                    && request.resource.data.description == resource.data.description;
+      allow delete: if true;   // TODO(level-2): admin only (app-gated today)
+    }
+
+    // No catch-all: any collection not matched above is DENIED. Add a
+    // new match block here (and to SECURITY.md's inventory) when a new
+    // collection is introduced.
+  }
+}

@@ -27,6 +27,30 @@ function _firstArea(a) {
   return null;
 }
 
+// Bounded-concurrency map — runs `fn` over `items` with at most `limit` in
+// flight at once, results returned in the same order as `items`. Used by
+// submitWithFiles() so a submission's evidence photos upload several at a
+// time instead of strictly one after another (which is what made a
+// many-photo submission take noticeably longer than it needed to), while
+// still capping concurrency so a large batch doesn't fire dozens of
+// simultaneous requests at the free-tier Apps Script proxy at once.
+function _mapLimit(items, limit, fn) {
+  return new Promise(resolve => {
+    const results = new Array(items.length);
+    if (!items.length) { resolve(results); return; }
+    let next = 0, done = 0;
+    function runNext() {
+      if (next >= items.length) return;
+      const i = next++;
+      Promise.resolve(fn(items[i], i))
+        .then(r => { results[i] = r; }, () => { results[i] = undefined; })
+        .then(() => { done++; if (done === items.length) resolve(results); else runNext(); });
+    }
+    for (let k = 0; k < Math.min(limit, items.length); k++) runNext();
+  });
+}
+const PHOTO_UPLOAD_CONCURRENCY = 4;
+
 const Approvals = {
   COLLECTION: 'approvals',
 
@@ -54,6 +78,10 @@ const Approvals = {
       review: meta.autoReview || null,   // {comments, recommendations, signature, reviewedBy, reviewedAt, auto}
       approval: null,     // {notes, signature, approvedBy, approvedAt}
       returnedNote: null, // {note, by, stage, returnedAt}
+      // {reason:'slow_connection', count, skippedAt} when submitted with
+      // submit-guard.js's "Mode Hemat Data" active and this checksheet
+      // actually had photos to upload — null otherwise. See submitWithFiles().
+      photosSkipped: meta.photosSkipped || null,
       finalPdfUrl: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -142,6 +170,32 @@ const Approvals = {
     });
   },
 
+  // Reopen an approved report so it can be edited and resubmitted. Status goes
+  // back to 'submitted' (TechOp2 queue); the old review/approval/finalPdfUrl are
+  // archived into reopenedHistory[] rather than discarded, so the signed record
+  // of the earlier approval survives.
+  async cancelApproval(id, { by, reason } = {}) {
+    const cur = await this.getById(id);
+    if (!cur) throw new Error('Approval tidak ditemukan.');
+    if (cur.status !== 'approved') throw new Error('Item ini tidak berstatus approved.');
+    const now = new Date().toISOString();
+    const hist = Array.isArray(cur.reopenedHistory) ? cur.reopenedHistory.slice() : [];
+    hist.push({
+      reopenedBy: by || '', reopenedAt: now, reason: reason || '',
+      review: cur.review || null, approval: cur.approval || null,
+      finalPdfUrl: cur.finalPdfUrl || null,
+    });
+    await db.collection(this.COLLECTION).doc(id).update({
+      status: 'submitted',
+      review: null,
+      approval: null,
+      finalPdfUrl: null,
+      reopenedHistory: hist,
+      adminNote: { action: 'cancel-approval', by: by || '', at: now },
+      updatedAt: now,
+    });
+  },
+
   // Edit routing / display fields on the approval doc (name, team, area).
   // area is normalized to a single plain string (see _firstArea).
   async adminEditRouting(id, { submittedBy, team, area, by } = {}) {
@@ -194,6 +248,15 @@ const Approvals = {
   //     photos upload (proportional to count), then the PDF, then the
   //     approvals record — lets the caller drive a real progress bar
   //     instead of a guessed animation. Never called if omitted.
+  //   (No opts field for this — it's a global, persistent technician toggle,
+  //   not a per-call choice.) When submit-guard.js's SubmitGuard.isPdfOnlyMode()
+  //   is true ("Mode Hemat Data"), a fresh evidence-photo upload is skipped
+  //   entirely and only the archival PDF still uploads — see the
+  //   `pdfOnlyMode`/`skippedPhotos` block below. The resulting approval doc
+  //   gets `photosSkipped:{reason,count,skippedAt}` so the review dashboard
+  //   can tell a reviewer why a report has no photos yet; nothing is lost,
+  //   since the check sheet's own local PHOTOS[]/draft still has them for a
+  //   later revision resubmit to upload normally.
   //   autoReview: pass false to force the normal review path even when the
   //     submitter is a TechOp2. Otherwise this is decided automatically from
   //     window.AuthSession.get(): a logged-in TechOp2 (role 'techop2')
@@ -207,6 +270,18 @@ const Approvals = {
   // any part failed (logged to console) — the checksheet doc itself was
   // ALREADY saved by the caller before this runs, so a false return here
   // must never be treated as "the whole submission failed."
+  //
+  // Resilience note: a single failed photo (or the PDF) no longer aborts
+  // everything else in this call. Before this, one flaky upload in the
+  // middle of a 10-photo loop threw out of the whole try block — which
+  // skipped attachFiles() AND skipped creating/updating the approvals
+  // record, so a submission with one bad photo silently never even entered
+  // the review queue (not just "missing a photo", the whole workflow entry
+  // never existed). Now each photo/the PDF is upload-attempted independently
+  // (storage-helper.js itself already retries transient failures with
+  // backoff before giving up); whatever succeeds is still attached and the
+  // approval record is still written, `ok` is false only when something
+  // actually failed, and `failedItems` names exactly what to re-upload.
   async submitWithFiles(checksheetId, opts = {}) {
     const { photos, pdfBuilder, assetTag, assetName, checksheetFile, submittedBy, revisionOf, existingApprovalId, onProgress, src } = opts;
     let { team, area } = opts;
@@ -242,6 +317,21 @@ const Approvals = {
         }
       }
     } catch (e) { /* session lookup is best-effort */ }
+    const failedItems = [];
+    // "Mode Hemat Data" — a persistent, technician-controlled toggle owned by
+    // submit-guard.js (see that file's header). When on, a FRESH photo upload
+    // is skipped entirely (only the archival PDF still uploads below);
+    // photos already on Drive from an earlier CloudDraft save are still
+    // attached for free (the `reuse` branch below runs regardless of this
+    // flag — nothing new is uploaded either way, so there's no bandwidth
+    // reason to withhold them). Skipped photos are never lost: they stay in
+    // the check sheet's own local PHOTOS[]/draft, and a later revision
+    // resubmit (`?reviseOf=`) uploads them normally once the connection is
+    // better. `skippedPhotos` becomes the `photosSkipped` field recorded on
+    // the approval doc further below, so Review_Approval_Dashboard.html can
+    // tell a reviewer why a report has no evidence photos yet.
+    const pdfOnlyMode = (typeof SubmitGuard !== 'undefined' && SubmitGuard.isPdfOnlyMode && SubmitGuard.isPdfOnlyMode());
+    let skippedPhotos = 0;
     try {
       const photoUrls = {};
       const groups = Object.keys(photos || {});
@@ -256,7 +346,7 @@ const Approvals = {
         if (opts.reusePhotoUrls) reuse = opts.reusePhotoUrls;
         else if (typeof window !== 'undefined' && window.CloudDraft && CloudDraft.getReusePhotoUrls) reuse = CloudDraft.getReusePhotoUrls();
       } catch (e) {}
-      if (totalPhotos) report(0, 'Mengunggah foto...');
+      if (totalPhotos) report(0, pdfOnlyMode ? `Mode Hemat Data aktif — ${totalPhotos} foto akan dilewati...` : 'Mengunggah foto...');
       for (const key of groups) {
         const list = photos[key] || [];
         if (!list.length) continue;
@@ -268,43 +358,84 @@ const Approvals = {
           if (totalPhotos) report(Math.round((uploadedPhotos / totalPhotos) * 70), `Foto ${key} sudah tersimpan (${list.length})...`);
           continue;
         }
-        const urls = [];
-        for (let i = 0; i < list.length; i++) {
-          const p = list[i];
-          if (!p || !p.src) continue;
-          const url = (p.__cdUrl && p.__cdSig === (String(p.src).length + '~' + String(p.src).slice(0, 24) + String(p.src).slice(-24)))
-            ? p.__cdUrl
-            : await Storage.uploadDataUrl(
-                `checksheets/${checksheetId}/photos/${key}-${i}.jpg`, p.src, 'image/jpeg'
-              );
-          // w/h/widthCm/heightCm ride along so a later restore (revision
-          // banner / Load & Merge — see load-merge-modal.js's
-          // restorePhotosFromUrls hook) can recreate the exact same PhotoKit
-          // entry shape, not just the picture. Per CLAUDE.md's "Photos"
-          // section: without these, a restored photo falls back to
-          // PhotoKit's default box instead of the crop the technician
-          // actually chose. Harmless if the source entry doesn't have them
-          // (older photos, or a sheet not using PhotoKit) — just omitted.
-          urls.push({
-            url, caption: p.caption || '',
-            ...(p.w != null ? { w: p.w } : {}),
-            ...(p.h != null ? { h: p.h } : {}),
-            ...(p.widthCm != null ? { widthCm: p.widthCm } : {}),
-            ...(p.heightCm != null ? { heightCm: p.heightCm } : {}),
-          });
-          uploadedPhotos++;
-          if (totalPhotos) report(Math.round((uploadedPhotos / totalPhotos) * 70), `Mengunggah foto ${uploadedPhotos}/${totalPhotos}...`);
+        if (pdfOnlyMode) {
+          skippedPhotos += list.length;
+          uploadedPhotos += list.length;
+          if (totalPhotos) report(Math.round((uploadedPhotos / totalPhotos) * 70), `Mode Hemat Data aktif — foto ${key} dilewati (${skippedPhotos} total)...`);
+          continue;
         }
+        // Upload/resolve every photo in this group CONCURRENTLY (capped —
+        // see _mapLimit above) instead of strictly one at a time. Each photo
+        // still tries/catches independently (storage-helper.js already
+        // retries a transient network/Apps Script failure internally with
+        // backoff, so by the time an error reaches HERE it's a real,
+        // non-transient failure) — one bad photo never blocks or drops any
+        // other, running concurrently or not.
+        const results = await _mapLimit(list, PHOTO_UPLOAD_CONCURRENCY, async (p, i) => {
+          if (!p) return null;
+          // A reference to a file already on Drive with NO local data URL — e.g.
+          // a photo from a session restore that was never downloaded into memory
+          // (deferred load / a failed "Muat Foto"). Keep its URL; nothing to
+          // upload. Without this it was silently dropped (the old `!p.src` skip).
+          if (p.__cdUrl && !p.src) {
+            uploadedPhotos++;
+            if (totalPhotos) report(Math.round((uploadedPhotos / totalPhotos) * 70), `Foto ${key} sudah tersimpan (${uploadedPhotos}/${totalPhotos})...`);
+            return {
+              url: p.__cdUrl, caption: p.caption || '',
+              ...(p.w != null ? { w: p.w } : {}),
+              ...(p.h != null ? { h: p.h } : {}),
+              ...(p.widthCm != null ? { widthCm: p.widthCm } : {}),
+              ...(p.heightCm != null ? { heightCm: p.heightCm } : {}),
+            };
+          }
+          if (!p.src) return null;
+          try {
+            const url = (p.__cdUrl && p.__cdSig === (String(p.src).length + '~' + String(p.src).slice(0, 24) + String(p.src).slice(-24)))
+              ? p.__cdUrl
+              : await Storage.uploadDataUrl(
+                  `checksheets/${checksheetId}/photos/${key}-${i}.jpg`, p.src, 'image/jpeg',
+                  info => { if (totalPhotos) report(Math.round((uploadedPhotos / totalPhotos) * 70), `Foto ${key} #${i + 1}: koneksi bermasalah, mencoba lagi (${info.attempt}/${info.max})...`); }
+                );
+            // w/h/widthCm/heightCm ride along so a later restore (revision
+            // banner / Load & Merge — see load-merge-modal.js's
+            // restorePhotosFromUrls hook) can recreate the exact same PhotoKit
+            // entry shape, not just the picture. Per CLAUDE.md's "Photos"
+            // section: without these, a restored photo falls back to
+            // PhotoKit's default box instead of the crop the technician
+            // actually chose. Harmless if the source entry doesn't have them
+            // (older photos, or a sheet not using PhotoKit) — just omitted.
+            uploadedPhotos++;
+            if (totalPhotos) report(Math.round((uploadedPhotos / totalPhotos) * 70), `Mengunggah foto ${uploadedPhotos}/${totalPhotos}...`);
+            return {
+              url, caption: p.caption || '',
+              ...(p.w != null ? { w: p.w } : {}),
+              ...(p.h != null ? { h: p.h } : {}),
+              ...(p.widthCm != null ? { widthCm: p.widthCm } : {}),
+              ...(p.heightCm != null ? { heightCm: p.heightCm } : {}),
+            };
+          } catch (photoErr) {
+            console.error(`Approvals.submitWithFiles: gagal upload foto ${key}#${i}:`, photoErr);
+            failedItems.push(`Foto ${key} #${i + 1}`);
+            return null;
+          }
+        });
+        const urls = results.filter(Boolean);
         if (urls.length) photoUrls[key] = urls;
       }
 
       let pdfUrl = null;
       if (typeof pdfBuilder === 'function') {
-        report(72, 'Membuat PDF arsip...');
-        const pdf = await pdfBuilder();
-        const blob = pdf.output('blob');
-        report(80, 'Mengunggah PDF...');
-        pdfUrl = await Storage.uploadBlob(`checksheets/${checksheetId}/original.pdf`, blob, 'application/pdf');
+        try {
+          report(72, 'Membuat PDF arsip...');
+          const pdf = await pdfBuilder();
+          const blob = pdf.output('blob');
+          report(80, 'Mengunggah PDF...');
+          pdfUrl = await Storage.uploadBlob(`checksheets/${checksheetId}/original.pdf`, blob, 'application/pdf',
+            info => report(80, `PDF arsip: koneksi bermasalah, mencoba lagi (${info.attempt}/${info.max})...`));
+        } catch (pdfErr) {
+          console.error('Approvals.submitWithFiles: gagal upload PDF arsip:', pdfErr);
+          failedItems.push('PDF arsip');
+        }
       }
 
       if (Object.keys(photoUrls).length || pdfUrl) {
@@ -331,6 +462,10 @@ const Approvals = {
           assetTag: assetTag || '', assetName: assetName || '', checksheetFile: checksheetFile || '',
           submittedBy: submittedBy || '',
           ...(team ? { team } : {}), ...(area ? { area } : {}),
+          // Always assigned (never spread-conditional) so a revision that DID
+          // manage to upload its photos correctly clears a stale flag left
+          // over from the original slow-connection submission.
+          photosSkipped: skippedPhotos > 0 ? { reason: 'slow_connection', count: skippedPhotos, skippedAt: new Date().toISOString() } : null,
           updatedAt: new Date().toISOString(),
         };
         if (wasReturned) {
@@ -348,9 +483,16 @@ const Approvals = {
         }
         await db.collection(this.COLLECTION).doc(existingApprovalId).set(patch, { merge: true });
       } else {
-        await this.create(checksheetId, { assetTag, assetName, checksheetFile, submittedBy, revisionOf, team, area, src, autoReview });
+        const photosSkipped = skippedPhotos > 0 ? { reason: 'slow_connection', count: skippedPhotos, skippedAt: new Date().toISOString() } : null;
+        await this.create(checksheetId, { assetTag, assetName, checksheetFile, submittedBy, revisionOf, team, area, src, autoReview, photosSkipped });
       }
-      report(100, 'Selesai');
+      if (failedItems.length) {
+        ok = false;
+        console.warn('Approvals.submitWithFiles: selesai dengan file gagal diupload:', failedItems);
+        report(100, `Selesai — ${failedItems.length} file gagal diupload (${failedItems.join(', ')})`);
+      } else {
+        report(100, 'Selesai');
+      }
     } catch (e) {
       ok = false;
       console.error('Approvals.submitWithFiles gagal:', e);

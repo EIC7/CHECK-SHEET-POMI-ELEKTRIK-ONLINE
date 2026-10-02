@@ -12,14 +12,15 @@
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script><script src="firebase-config.js?v=20260901d"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script><script src="firebase-config.js?v=20261001b"></script>
 <!-- ?v bumped on every change to a shared lib so GitHub Pages' 10-min asset
      cache doesn't serve a stale copy (symptom: "Approvals.xxx is not a function"). -->
-<script src="db-helper.js?v=20260901d"></script>
-<script src="storage-helper.js?v=20260901d"></script>
-<script src="approval-helper.js?v=20260901d"></script>
-<script src="auth-session.js?v=20260901d"></script>
-<script src="team-routing.js?v=20260901d"></script>
+<script src="db-helper.js?v=20261001b"></script>
+<script src="storage-helper.js?v=20261001b"></script>
+<script src="approval-helper.js?v=20261001b"></script>
+<script src="auth-session.js?v=20261001b"></script>
+<script src="feedback-widget.js?v=20261001b"></script>
+<script src="team-routing.js?v=20261001b"></script>
 <style>
 :root{
   --bg:#f4f7fb; --bg-2:#eaf0f7; --surf:#ffffff; --surf-2:#f8fafc;
@@ -225,6 +226,7 @@ select.login-field:disabled{opacity:.55;cursor:not-allowed}
 
 /* STATUS LAPORAN TAB */
 .ms-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.ms-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
 .ms-sc{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
 .ms-sc .n{font-family:var(--display);font-size:24px;font-weight:700;line-height:1}
 .ms-sc .l{font-size:11px;color:var(--txt-2);font-weight:700;margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
@@ -237,6 +239,8 @@ select.login-field:disabled{opacity:.55;cursor:not-allowed}
 .ms-card-top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
 .ms-card-title{font-weight:700;font-size:13.5px;flex:1;min-width:170px}
 .ms-card-meta{font-family:var(--mono);font-size:10.5px;color:var(--txt-3);margin-top:2px}
+.ms-card-extra{font-size:11.5px;color:var(--txt-2);margin-top:5px;line-height:1.5}
+.ms-card-extra b{color:var(--txt)}
 .ms-stepper{display:flex;align-items:center;margin:11px 0 3px;flex-wrap:wrap}
 .ms-step{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-3)}
 .ms-step .d{width:17px;height:17px;border-radius:50%;border:2px solid var(--bdr-2);display:grid;place-items:center;font-size:9px;font-weight:800;background:var(--surf);flex-shrink:0}
@@ -270,11 +274,16 @@ select.login-field:disabled{opacity:.55;cursor:not-allowed}
 .info-cell .v{font-size:13px;font-weight:700;word-break:break-word}
 .file-links{display:flex;gap:10px;flex-wrap:wrap}
 .photo-groups{display:flex;flex-direction:column;gap:10px}
-.photo-group-lbl{font-size:11.5px;font-weight:700;color:var(--txt-2);font-family:var(--mono)}
+.photo-group-lbl{font-size:11.5px;font-weight:700;color:var(--txt-2);font-family:var(--mono);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.photo-group-count{font-weight:500;color:var(--txt-3)}
+.photo-load-btn{font-family:var(--sans)}
 .photo-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .photo-thumbs img{width:78px;height:78px;object-fit:cover;border-radius:8px;border:1px solid var(--bdr)}
+.photo-thumbs img.loading{opacity:.35;background:var(--surf-2)}
+.photo-thumbs img.load-error{opacity:.5;border-color:var(--danger-btn-bdr);filter:grayscale(1)}
 .note-box{background:var(--surf-2);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.6;white-space:pre-wrap}
 .note-box.returned{background:var(--ng-soft);border-color:var(--danger-btn-bdr);color:var(--rose-ink)}
+.note-box.warn{background:var(--acc-soft);border-color:var(--warn-bdr);color:var(--amber-ink)}
 .sig-preview{margin-top:8px}
 .sig-preview img{max-width:220px;max-height:100px;border:1px solid var(--bdr);border-radius:8px;background:#fff}
 textarea.dinput{width:100%;border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;font-size:13px;resize:vertical;min-height:70px;outline:none}
@@ -290,6 +299,10 @@ canvas.sig-canvas{border:1.5px dashed var(--bdr-2);border-radius:10px;background
 .edit-cs-box a{flex-shrink:0;text-decoration:none}
 
 @media(max-width:640px){
+  /* tab row scrolls sideways instead of widening the page */
+  .tabs{overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab-btn{flex-shrink:0;white-space:nowrap}
   .detail-hdr{flex-direction:column}
   .action-row{justify-content:stretch}
   .action-row button{flex:1}
@@ -300,6 +313,14 @@ canvas.sig-canvas{border:1.5px dashed var(--bdr-2);border-radius:10px;background
   .tb-right{order:2;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;gap:6px}
   .tb-nav{order:3;flex:1 0 100%;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
   .tb-nav a{padding:7px 10px;font-size:12px;white-space:nowrap;flex-shrink:0}
+}
+
+/* mobile-topbar-fix: on a phone the topbar buttons scroll inside the bar
+   instead of widening the whole page (which made every page side-scroll) */
+@media(max-width:640px){
+  .tb-right{min-width:0;flex-shrink:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tb-right::-webkit-scrollbar{display:none}
+  .tb-right>*{flex-shrink:0}
 }
 </style>
 <script>
@@ -612,6 +633,16 @@ canvas.sig-canvas{border:1.5px dashed var(--bdr-2);border-radius:10px;background
        review, with a Submit -> Review -> Approval timeline per report. -->
   <div id="mystatus-area" style="display:none">
     <div class="ms-summary" id="ms-summary"></div>
+    <div class="ms-filters">
+      <input type="text" class="filter-sel" id="ms-search" placeholder="Cari nama / tag / PIC / WO…" oninput="renderMyStatus()" style="min-width:190px;flex:1">
+      <select class="filter-sel" id="ms-date-mode" onchange="onMsDateModeChange()">
+        <option value="all">Semua tanggal</option>
+        <option value="month">Per Bulan</option>
+        <option value="week">Per Minggu</option>
+      </select>
+      <select class="filter-sel" id="ms-period" onchange="renderMyStatus()" style="display:none"></select>
+      <button class="btn btn-sm" onclick="resetMsFilters()">Reset</button>
+    </div>
     <div id="ms-sections"></div>
   </div>
 
@@ -1173,6 +1204,11 @@ async function saveSignatureFromSettings(){
 // flow: writes a `checksheets` doc + uploads the PDF + images to Drive +
 // creates an `approvals` doc (status 'submitted') with explicit team/area
 // routing. scopeOfApproval() reads that team/area straight off the approval.
+// Set once a manual-upload attempt has saved its checksheet doc, cleared
+// only once submitWithFiles() actually succeeds (see submitManualUpload) —
+// lets a retry after a failed upload reuse the SAME doc via DB.update()
+// instead of DB.save()-ing a brand-new one every time "Submit" is clicked.
+let _muInFlightId = null;
 function openManualUpload(){
   const ov = document.getElementById('manual-overlay');
   ov.style.display = 'flex'; ov.classList.remove('hide');
@@ -1185,6 +1221,7 @@ function openManualUpload(){
   document.getElementById('mu-images').value = '';
   document.getElementById('mu-img-count').textContent = '';
   document.getElementById('mu-err').textContent = '';
+  _muInFlightId = null; // a fresh form is a fresh report — abandon any earlier failed-attempt doc id
 }
 function closeManualUpload(){
   const ov = document.getElementById('manual-overlay');
@@ -1267,8 +1304,20 @@ async function submitManualUpload(){
         { no: '7', desc: 'Catatan', values: { Value: notes || '—' } },
       ] } },
     };
-    setFileProgressPct(6, 'Menyimpan data laporan…');
-    const id = await DB.save(base);
+    // Reuse the SAME checksheet doc across a retry (see _muInFlightId above)
+    // — otherwise a failed upload followed by clicking "Submit" again would
+    // DB.save() a second, duplicate checksheet doc with no approval record
+    // ever pointing at it (an orphan nothing in this app cleans up
+    // automatically, unlike an orphaned APPROVAL — see CLAUDE.md).
+    let id = _muInFlightId;
+    if(id){
+      setFileProgressPct(6, 'Melanjutkan laporan yang tersimpan…');
+      await DB.update(id, base);
+    }else{
+      setFileProgressPct(6, 'Menyimpan data laporan…');
+      id = await DB.save(base);
+      _muInFlightId = id;
+    }
 
     // Compress images up front so submitWithFiles just uploads them.
     const photoEntries = [];
@@ -1288,16 +1337,18 @@ async function submitManualUpload(){
       team, area, src: 'Upload manual',
       onProgress: (pct, label) => setFileProgressPct(10 + Math.round(pct * 0.85), label),
     });
-    if(!ok) throw new Error('Upload file / pencatatan approval gagal — cek koneksi lalu coba lagi.');
+    if(!ok) throw new Error('Sebagian file gagal diupload — cek koneksi lalu tekan Submit lagi (data laporan sudah tersimpan, tidak akan dobel).');
 
     finishFileProgress();
+    _muInFlightId = null; // fully succeeded — a later Manual Upload starts a fresh doc
     closeManualUpload();
     alert('✅ Laporan manual masuk ke Review & Approval (team ' + team + ' · ' + area + ').');
     await loadAll();
   }catch(err){
     hideFileProgress();
     console.error('Manual upload gagal:', err);
-    errEl.textContent = 'Gagal: ' + (err.message || err);
+    errEl.textContent = 'Gagal: ' + (err.message || err) +
+      (_muInFlightId ? ' Data laporan sudah tersimpan — tekan Submit lagi untuk melanjutkan (tidak akan dobel).' : '');
   }
   btn.disabled = false; btn.textContent = '📤 Submit ke Review & Approval';
 }
@@ -1438,6 +1489,28 @@ function inMyReviewScope(a){
   return s.team === loggedInTeam && loggedInAreas.includes(s.area);
 }
 
+// Renders whatever is currently in _allApprovals into the active tab. Split
+// out of loadAll() so the page can paint TWICE per load: once right after the
+// main approvals fetch (fast, single round-trip), and again after the slower
+// duplicate/orphan cleanup housekeeping below finishes. Before this split,
+// every render was gated behind that housekeeping — on a normal connection
+// that's invisible, but cleanupDuplicateApprovals() does a chain of
+// sequential Firestore reads/deletes (one per approval needing a
+// revisionOf/orphan check) that can take several seconds on a slow
+// connection, or, per a real prior bug class in this codebase, occasionally
+// hang outright. The symptom looked exactly like "data doesn't show until I
+// click a tab": the data was already fetched and sitting in _allApprovals,
+// nothing had actually failed — the render call was just still waiting
+// behind housekeeping that hadn't finished yet, and clicking any tab called
+// switchTab(), which renders from _allApprovals directly and doesn't wait on
+// housekeeping at all.
+function renderActiveTab(){
+  updateTabCounts();
+  populateHistoryAreaOptions();
+  if(_activeTab === 'recap'){ populateRecapPersonOptions(); renderRecapChart(); }
+  else if(_activeTab === 'mystatus'){ populateMsPeriodOptions(); renderMyStatus(); }
+  else renderList();
+}
 async function loadAll(){
   document.getElementById('list-area').innerHTML = '<div class="list-loading"><div class="msg">Memuat...</div></div>';
   document.getElementById('dedupe-note').style.display = 'none';
@@ -1447,45 +1520,42 @@ async function loadAll(){
     document.getElementById('list-area').innerHTML = '<div class="list-empty"><div class="msg">Gagal memuat data</div><div>'+e.message+'</div></div>';
     return;
   }
-  await loadUserDir(true);
-  // Self-heal: an older submit path stored `area` as a JSON-stringified array
-  // ('["Powerblock"]'), which broke scope matching (the PIC couldn't review).
-  // Rewrite just that one field on the approvals doc when it's detectably
-  // malformed — idempotent, only touches the workflow collection.
-  await Promise.all(_allApprovals.map(async a => {
-    if(typeof a.area === 'string' && a.area.trim().charAt(0) === '['){
-      const clean = toAreaList(a.area)[0] || null;
-      if(clean && clean !== a.area){
-        try{ await db.collection('approvals').doc(a.id).update({ area: clean }); a.area = clean; }
-        catch(e){ console.warn('area self-heal gagal untuk', a.id, e && e.message); }
-      }
-    }
-  }));
+  try{ await loadUserDir(true); }catch(e){ console.error('loadUserDir gagal:', e); }
   _allApprovals.forEach(a => {
     const s = scopeOfApproval(a);
     a._team = s.team; a._area = s.area; a._src = s.src || null;
   });
+  renderActiveTab(); // first paint — see renderActiveTab()'s own comment above
+  maybeOpenFromUrl();
   try{
+    // Self-heal: an older submit path stored `area` as a JSON-stringified array
+    // ('["Powerblock"]'), which broke scope matching (the PIC couldn't review).
+    // Rewrite just that one field on the approvals doc when it's detectably
+    // malformed — idempotent, only touches the workflow collection.
+    await Promise.all(_allApprovals.map(async a => {
+      if(typeof a.area === 'string' && a.area.trim().charAt(0) === '['){
+        const clean = toAreaList(a.area)[0] || null;
+        if(clean && clean !== a.area){
+          try{ await db.collection('approvals').doc(a.id).update({ area: clean }); a.area = clean; }
+          catch(e){ console.warn('area self-heal gagal untuk', a.id, e && e.message); }
+        }
+      }
+    }));
     const removed = await cleanupDuplicateApprovals(_allApprovals);
     if(removed.length){
       const removedIds = new Set(removed.map(a=>a.id));
       _allApprovals = _allApprovals.filter(a => !removedIds.has(a.id));
       showDedupeNote(removed.length);
     }
+    // cleanupDuplicateApprovals() populated _checksheetCache for every approval —
+    // fold WO number + execution date onto the approval for history search/sort.
+    _allApprovals.forEach(a => {
+      const cs = _checksheetCache[a.checksheetId];
+      a._wo = (cs && cs.woNumber) || '';
+      a._date = (cs && cs.executionDate) || '';
+    });
   }catch(e){ console.error('Cleanup duplikat approval gagal:', e); }
-  // cleanupDuplicateApprovals() populated _checksheetCache for every approval —
-  // fold WO number + execution date onto the approval for history search/sort.
-  _allApprovals.forEach(a => {
-    const cs = _checksheetCache[a.checksheetId];
-    a._wo = (cs && cs.woNumber) || '';
-    a._date = (cs && cs.executionDate) || '';
-  });
-  updateTabCounts();
-  populateHistoryAreaOptions();
-  if(_activeTab === 'recap'){ populateRecapPersonOptions(); renderRecapChart(); }
-  else if(_activeTab === 'mystatus'){ renderMyStatus(); }
-  else renderList();
-  maybeOpenFromUrl();
+  renderActiveTab(); // second paint, with dedup + WO/date now folded in
 }
 function showDedupeNote(n){
   const note = document.getElementById('dedupe-note');
@@ -1653,7 +1723,7 @@ function switchTab(tab){
   document.getElementById('recap-area').style.display = isRecap ? '' : 'none';
   document.getElementById('mystatus-area').style.display = isMy ? '' : 'none';
   if(isRecap){ populateRecapPersonOptions(); renderRecapChart(); }
-  else if(isMy){ renderMyStatus(); }
+  else if(isMy){ populateMsPeriodOptions(); renderMyStatus(); }
   else{ renderList(); }
 }
 function updateTabCounts(){
@@ -1721,10 +1791,14 @@ function _isMyOwnReport(a, cs){
 // (opening ?reviseOf= resets it appropriately on resubmit) but never once
 // APPROVED — that's final, contact admin.
 function _canOwnerEdit(a){ return a && a.status !== 'approved' && !!a.checksheetFile && !a._src; }
-// A submitter may DELETE their own report only while NOTHING a reviewer has
-// acted on — i.e. status 'submitted' / 'revised' (Approvals.isPendingReview).
-// Once reviewed / approved / returned it's real workflow history: contact admin.
-function _canOwnerDelete(a){ return a && Approvals.isPendingReview(a.status) && !a._src; }
+// A submitter may DELETE their own report at ANY status if there was a
+// mistake — the gate is ownership (_isMyOwnReport), not workflow stage. The
+// confirm dialog in doDeleteMyReport() escalates by status: a plain confirm
+// for pending/returned, a "type HAPUS" prompt once it's been reviewed or
+// approved (that also discards the reviewer's / supervisor's signed work).
+// External-feed submissions (_src) still can't be deleted here — they live in
+// another app.
+function _canOwnerDelete(a){ return !!a && !a._src; }
 function _msIReviewed(a){ return a.review && _msMatches(a.review.reviewedBy); }
 function _msIApproved(a){ return a.approval && _msMatches(a.approval.approvedBy); }
 function _msInMyArea(a){
@@ -1756,10 +1830,61 @@ function myStatusSections(){
   }
   return [{ h:'📋 Semua laporan', sub:'Admin melihat seluruh laporan di sistem.', items:_allApprovals.slice() }];
 }
+// Returns the deduped set of approval OBJECTS across every section (an item
+// can legitimately appear in more than one section — e.g. a TechOp2's own
+// submission — so this is keyed by id to count/list each report once).
 function myStatusItems(){
-  const seen = new Set();
-  myStatusSections().forEach(s => s.items.forEach(a => seen.add(a.id)));
-  return [...seen];
+  const seen = new Map();
+  myStatusSections().forEach(s => s.items.forEach(a => seen.set(a.id, a)));
+  return [...seen.values()];
+}
+// Free-text search across the fields a person would actually search by —
+// same field set as the "Semua Riwayat" tab's #hf-search, for consistency.
+function _msMatchesSearch(a, cs, q){
+  if(!q) return true;
+  const t = _assetTitleParts(a, cs);
+  const hay = [t.name, t.tag, a.submittedBy, cs && cs.checkedBy, a._wo, a._area, a._src,
+    Approvals.STATUS_LABELS[a.status]].filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(q);
+}
+// Week/Month filter (item 2 of the request): buckets by a.createdAt — the
+// actual upload/submit timestamp — not executionDate, since the ask was
+// explicitly "per tanggal uploadnya". 'all' mode (default) never filters.
+function _msInSelectedPeriod(a){
+  const mode = document.getElementById('ms-date-mode').value;
+  if(mode === 'all') return true;
+  const period = document.getElementById('ms-period').value;
+  if(!period) return true; // period list still populating / nothing picked yet
+  const key = mode === 'week' ? weekKey(a.createdAt) : monthKey(a.createdAt);
+  return key === period;
+}
+// Rebuilds the period <select> from the periods actually PRESENT in the
+// person's own Status Laporan items (not every calendar week/month that
+// ever existed) — so the dropdown only ever offers something that has data
+// behind it, and stays short. Newest period first.
+function populateMsPeriodOptions(){
+  const mode = document.getElementById('ms-date-mode').value;
+  const sel = document.getElementById('ms-period');
+  if(mode === 'all'){ sel.style.display = 'none'; sel.innerHTML = ''; return; }
+  sel.style.display = '';
+  const keyFn = mode === 'week' ? weekKey : monthKey;
+  const labelFn = mode === 'week' ? weekLabel : monthLabel;
+  const keys = new Set();
+  myStatusItems().forEach(a => { const k = keyFn(a.createdAt); if(k) keys.add(k); });
+  const sorted = [...keys].sort().reverse();
+  const cur = sel.value;
+  sel.innerHTML = sorted.map(k => `<option value="${k}">${escHtml(labelFn(k))}</option>`).join('');
+  sel.value = sorted.includes(cur) ? cur : (sorted[0] || '');
+}
+function onMsDateModeChange(){
+  populateMsPeriodOptions();
+  renderMyStatus();
+}
+function resetMsFilters(){
+  document.getElementById('ms-search').value = '';
+  document.getElementById('ms-date-mode').value = 'all';
+  populateMsPeriodOptions();
+  renderMyStatus();
 }
 function _msStepper(a){
   if(a.status==='returned_to_technician'){
@@ -1782,12 +1907,32 @@ function _msStepper(a){
 }
 function _msStep(n,label,cls){ return `<div class="ms-step ${cls}"><span class="d">${n}</span>${escHtml(label)}</div>`; }
 function _msLn(cls){ return `<span class="ms-ln ${cls}"></span>`; }
+// Maintenance_Corrective_Action.html saves under one FIXED synthetic
+// assetName ("Maintenance Corrective Action Report") for every submission
+// — the real per-job identity lives in free-typed form fields instead (see
+// _msExtraLine below). That made every card/detail title identical
+// regardless of which job/asset it actually was. Mirrors the PDF's own
+// filename convention exactly (see generatePDF() in that file):
+// "<Work Order Type> Report <WO No.> <Asset Tag> <Failure Desc>" — keep the
+// two in sync if either changes.
+function _mcaTitleText(cs){
+  const iv = (cs && cs.inputValues) || {};
+  const woType = (iv['wo-type'] || 'CM').trim() || 'CM';
+  const woNo = ((cs && cs.woNumber) || iv['wo-no'] || 'NoWO').trim() || 'NoWO';
+  const assetTag = (iv['asset-tag'] || '').trim();
+  let failureDesc = (iv['failure-desc'] || '').trim();
+  if(failureDesc.length > 60) failureDesc = failureDesc.slice(0, 60).trim() + '...';
+  return [woType, 'Report', woNo, assetTag, failureDesc].filter(Boolean).join(' ');
+}
 // Report title = asset name + a mono chip with the asset TAG for quick
 // identification. The tag is hidden when it's just a slug of the name or a
 // synthetic per-visit placeholder (MANUAL-UPLOAD, etc.) — no value there.
 function _assetTitleParts(a, cs){
   let name = ((cs && cs.assetName) || (a && a.assetName) || '').toString().trim();
   let tag = ((cs && cs.assetTag) || (a && a.assetTag) || '').toString().trim();
+  if(/^maintenance-corrective-action$/i.test(tag)){
+    return { name: _mcaTitleText(cs) || name || 'Laporan', tag: '' };
+  }
   if(!name){ return { name: tag || 'Laporan', tag: '' }; }  // tag-only → it IS the name
   if(tag){
     const norm = s => s.toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
@@ -1804,16 +1949,41 @@ function _assetTitleText(a, cs){
   return p.name + (p.tag ? '  ·  ' + p.tag : '');
 }
 
+// Work_Activity_Record.html and Maintenance_Corrective_Action.html save
+// under one FIXED synthetic title/tag (per visit — see CLAUDE.md's
+// "Multi-asset..."/"MCA" sections), so unlike every other check sheet the
+// card title alone never says which real equipment a given submission is
+// about. The real asset + a short failure/work description are free-typed
+// fields INSIDE the form instead — pulled from `cs.inputValues` (populated
+// by DB.collectCheckSheetData()'s generic sweep) so they're visible right
+// under the title without opening "Detail lengkap". Field ids differ
+// between the two files (see CLAUDE.md's "data contract" per-file id
+// variance), so both conventions are tried.
+function _msExtraLine(a, cs){
+  const tag = ((cs && cs.assetTag) || a.assetTag || '').trim().toUpperCase();
+  if(tag !== 'WORK-ACTIVITY-RECORD' && tag !== 'MAINTENANCE-CORRECTIVE-ACTION') return '';
+  const iv = (cs && cs.inputValues) || {};
+  const assetNo   = (iv['asset-tag'] || iv['asset'] || '').trim();
+  const assetDesc = (iv['asset-desc'] || iv['desc'] || '').trim();
+  const failure   = (iv['failure-desc'] || '').trim();
+  const parts = [];
+  if(assetNo || assetDesc) parts.push(`<b>Asset:</b> ${escHtml([assetNo, assetDesc].filter(Boolean).join(' — '))}`);
+  if(failure) parts.push(`<b>Failure/Work Desc:</b> ${escHtml(failure)}`);
+  return parts.length ? `<div class="ms-card-extra">${parts.join(' &nbsp;·&nbsp; ')}</div>` : '';
+}
 function _msCard(a){
   const cs = _checksheetCache[a.checksheetId] || {};
   const _t = _assetTitleParts(a, cs);
   const titleHtml = escHtml(_t.name) + (_t.tag ? `<span class="asset-tag-chip">${escHtml(_t.tag)}</span>` : '');
   const who = a.submittedBy || cs.checkedBy || '—';
+  const extraLine = _msExtraLine(a, cs);
   let detail = '';
   if(a.review){
     detail += `<div><b>Review</b> oleh ${escHtml(a.review.reviewedBy||'—')} · ${fmtDate(a.review.reviewedAt)}`
       + (a.review.auto ? ' <i>(otomatis — submitter Level 2)</i>' : '')
-      + (a.review.comments ? `<br>"${escHtml(a.review.comments)}"` : '') + `</div>`;
+      + (a.review.comments ? `<br><b>Komentar:</b> "${escHtml(a.review.comments)}"` : '')
+      + (a.review.recommendations ? `<br><b>Rekomendasi/Future Work:</b> "${escHtml(a.review.recommendations)}"` : '')
+      + `</div>`;
   }
   if(a.approval){
     detail += `<div style="margin-top:5px"><b>Approval</b> oleh ${escHtml(a.approval.approvedBy||'—')} · ${fmtDate(a.approval.approvedAt)}`
@@ -1848,6 +2018,7 @@ function _msCard(a){
       <div style="flex:1;min-width:170px">
         <div class="ms-card-title">${titleHtml}</div>
         <div class="ms-card-meta">WO ${escHtml(a._wo||'—')}${a._date?' · '+escHtml(a._date):''} · oleh ${escHtml(who)} · disubmit ${fmtDate(a.createdAt)}${a._src?' · via '+escHtml(a._src):''}</div>
+        ${extraLine}
       </div>
       <span class="card-badge ${a.status}">${escHtml(Approvals.STATUS_LABELS[a.status]||a.status)}</span>
     </div>
@@ -1858,7 +2029,16 @@ function _msCard(a){
   </div>`;
 }
 function renderMyStatus(){
-  const secs = myStatusSections();
+  const q = (document.getElementById('ms-search').value||'').trim().toLowerCase();
+  // Search + week/month period both narrow each section's items BEFORE the
+  // summary counts and section counts are computed, so everything on
+  // screen — stat cards included — consistently reflects the active filter
+  // instead of the cards showing an unfiltered total while the list below
+  // is filtered.
+  const secs = myStatusSections().map(s => ({
+    ...s,
+    items: s.items.filter(a => _msInSelectedPeriod(a) && _msMatchesSearch(a, _checksheetCache[a.checksheetId], q)),
+  }));
   const seen = new Map();
   secs.forEach(s => s.items.forEach(a => seen.set(a.id, a)));
   const all = [...seen.values()];
@@ -1996,6 +2176,28 @@ function monthLabel(key){
   const [y,m] = key.split('-');
   const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
   return names[parseInt(m,10)-1]+' '+y;
+}
+// Monday-start week bucketing for the Status Laporan tab's "Per Minggu"
+// filter — same key/label pattern as monthKey/monthLabel above, just at
+// week granularity. Key is the Monday's own date (YYYY-MM-DD), so two
+// dates land in the same bucket iff they're in the same Mon-Sun week.
+function weekKey(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  const dow = (d.getDay()+6)%7; // Mon=0 .. Sun=6
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate()-dow);
+  return monday.getFullYear()+'-'+String(monday.getMonth()+1).padStart(2,'0')+'-'+String(monday.getDate()).padStart(2,'0');
+}
+function weekLabel(key){
+  const [y,m,d] = key.split('-').map(Number);
+  const monday = new Date(y, m-1, d);
+  const sunday = new Date(y, m-1, d+6);
+  const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const sameMonth = monday.getMonth()===sunday.getMonth() && monday.getFullYear()===sunday.getFullYear();
+  const startPart = sameMonth ? String(monday.getDate())
+    : monday.getDate()+' '+names[monday.getMonth()]+(monday.getFullYear()!==sunday.getFullYear()?' '+monday.getFullYear():'');
+  return startPart+' – '+sunday.getDate()+' '+names[sunday.getMonth()]+' '+sunday.getFullYear();
 }
 // Person filter narrows the SET of approvals first (submitter: theirs only;
 // reviewer: only what they personally reviewed), then the three monthly
@@ -2198,6 +2400,23 @@ async function doCancelReview(){
     await loadAll();
   }catch(e){ alert('Gagal: '+e.message); }
 }
+async function doCancelApproval(){
+  if(loggedInRole !== 'admin' || !_curApproval) return;
+  const a = _curApproval;
+  if(!confirm('Batalkan approval laporan ini?\n\nStatus kembali ke SUBMITTED agar check sheet bisa diedit & ditambah datanya. Setelah dikirim ulang, laporan harus direview dan di-approve ULANG.\n\nReview, approval & PDF final sebelumnya diarsipkan di Riwayat (tidak dihapus).')) return;
+  const reason = (document.getElementById('adm-reopen-reason')?.value || '').trim();
+  try{
+    await Approvals.cancelApproval(a.id, { by: loggedInUser, reason });
+    const canOpen = a.checksheetFile && !a._src;
+    if(canOpen && confirm('Approval dibatalkan. Buka check sheet sekarang untuk diedit?\n(Saat submit ulang, data akan menimpa laporan yang sama.)')){
+      window.open(a.checksheetFile.replace(/ /g,'%20') + '?reviseOf=' + encodeURIComponent(a.id), '_blank', 'noopener');
+    } else if(!canOpen){
+      alert('Approval dibatalkan. Laporan ini berasal dari upload manual / aplikasi lain, jadi perbaikan dilakukan di sumbernya lalu dikirim ulang.');
+    }
+    closeDetail();
+    await loadAll();
+  }catch(e){ alert('Gagal: '+e.message); }
+}
 
 function _afterApprovalRemoved(id){
   _allApprovals = _allApprovals.filter(a => a.id !== id);
@@ -2227,11 +2446,24 @@ async function doDeleteMyReport(id){
     return;
   }
   if(!_canOwnerDelete(a)){
-    alert('Laporan ini sudah diproses (direview / disetujui / dikembalikan) sehingga tidak bisa Anda hapus sendiri.\n\nHubungi admin bila memang ada kesalahan.');
+    alert('Submission ini masuk lewat aplikasi lain sehingga tidak bisa dihapus dari sini.');
     return;
   }
   const label = (cs && (cs.assetName||cs.assetTag)) || a.assetName || a.assetTag || 'laporan ini';
-  if(!confirm('Hapus "'+label+'" secara PERMANEN?\n\nLaporan ini belum direview, jadi akan dihapus sepenuhnya:\n• entri Review & Approval\n• data checklist di database (hilang dari Dashboard: riwayat, grafik tren, export Excel)\n• foto & PDF terkait di Google Drive\n\nTindakan ini TIDAK DAPAT DIBATALKAN.')) return;
+  const common = '\n\nAkan dihapus sepenuhnya:\n• entri Review & Approval\n• data checklist di database (hilang dari Dashboard: riwayat, grafik tren, export Excel)\n• foto & PDF terkait di Google Drive\n\nTINDAKAN INI TIDAK DAPAT DIBATALKAN.';
+  const reviewed = a.status === 'reviewed' || (a.status === 'approved');
+  const approved = a.status === 'approved';
+  if(approved){
+    const who = (a.approval && a.approval.approvedBy) || 'supervisor';
+    const typed = prompt('Laporan "'+label+'" SUDAH DISETUJUI oleh '+who+' (laporan final).'+common+'\n\nKetik  HAPUS  (huruf besar) untuk menghapus laporan final ini beserta review & approval-nya:');
+    if(typed === null) return;
+    if(typed.trim() !== 'HAPUS'){ alert('Dibatalkan — teks konfirmasi tidak cocok.'); return; }
+  } else if(reviewed || a.status === 'returned_to_technician'){
+    const stage = a.status === 'returned_to_technician' ? 'sudah pernah diproses reviewer (dikembalikan untuk revisi)' : 'sudah direview oleh ' + ((a.review && a.review.reviewedBy) || 'TechOp2');
+    if(!confirm('Laporan "'+label+'" '+stage+' — hasil review/approval yang menyertainya juga akan ikut terhapus.'+common)) return;
+  } else {
+    if(!confirm('Hapus "'+label+'" secara PERMANEN?\n\nLaporan ini belum direview.'+common)) return;
+  }
 
   showFileProgress('Menghapus laporan…');
   try{
@@ -2355,17 +2587,34 @@ function renderDetail(a, cs){
   const photoUrls = cs?.photoUrls || {};
   const groups = Object.keys(photoUrls).filter(k => (photoUrls[k]||[]).length);
   html += `<div class="dsec"><div class="dsec-title">Foto Evidence</div>`;
+  // Set by approval-helper.js's submitWithFiles() when the technician had
+  // submit-guard.js's "Mode Hemat Data" toggle on and this report actually
+  // had photos to upload — they were deliberately skipped, not lost or
+  // failed, and are still sitting in the technician's own local draft until
+  // a revision resubmit uploads them for real.
+  if(a.photosSkipped && a.photosSkipped.count){
+    html += `<div class="note-box warn" style="margin-bottom:10px">&#128034; <b>${a.photosSkipped.count} foto belum diunggah</b> — teknisi mengaktifkan Mode Hemat Data saat submit (koneksi lambat), jadi hanya PDF yang diunggah. Foto masih tersimpan di perangkat teknisi dan akan terunggah saat laporan ini direvisi &amp; dikirim ulang di koneksi yang lebih baik.</div>`;
+  }
   if(!groups.length){
     html += `<span class="readonly-hint">Tidak ada foto, atau belum berhasil diunggah.</span>`;
   }else{
-    // Thumbnails start on a blank placeholder — drive-proxy.gs's endpoint
-    // is a JSON API, not a directly displayable image URL (see
-    // storage-helper.js's fetchMeta), so each real src is resolved
-    // asynchronously below via Storage.toObjectUrl() once this HTML is in
-    // the DOM.
+    // Photos are NOT fetched when this detail view opens — each group only
+    // downloads (through the same fragile free-tier Apps Script Drive proxy
+    // every other Storage.* call goes through) when the technician/reviewer
+    // explicitly clicks "Muat Foto" for that group. Opening a report used to
+    // eagerly fire one uncapped, concurrent Storage.toObjectUrl() request per
+    // photo the instant its detail rendered — for a report with dozens of
+    // evidence photos this both made opening a report needlessly heavy AND
+    // was a real contributor to "upload/download sering gagal" reports,
+    // since it could burst far more simultaneous requests at the proxy than
+    // the capped-concurrency upload path (PHOTO_UPLOAD_CONCURRENCY=4 in
+    // approval-helper.js) ever does. See loadPhotoGroup() below.
     html += `<div class="photo-groups">` + groups.map(g => `
-      <div><div class="photo-group-lbl">${escHtml(g)}</div>
-        <div class="photo-thumbs">${photoUrls[g].map(p => `<a href="#" onclick="openRemoteFile('${p.url}');return false;"><img class="pk-thumb" data-remote-url="${p.url}" src="${BLANK_PIXEL}" title="${escHtml(p.caption||'')}"></a>`).join('')}</div>
+      <div class="photo-group" data-group="${escHtml(g)}">
+        <div class="photo-group-lbl">${escHtml(g)} <span class="photo-group-count">(${photoUrls[g].length} foto)</span>
+          <button class="btn btn-sm photo-load-btn" onclick="loadPhotoGroup(this)">&#128247; Muat Foto</button>
+        </div>
+        <div class="photo-thumbs" data-urls='${escHtml(JSON.stringify(photoUrls[g]))}'></div>
       </div>`).join('') + `</div>`;
   }
   html += `</div>`;
@@ -2383,6 +2632,16 @@ function renderDetail(a, cs){
     }
     (a.returnedHistory||[]).forEach((h,i) => {
       html += `<div class="note-box returned" style="margin-top:8px">Pengembalian #${i+1} — oleh <b>${escHtml(h.by||'—')}</b> pada tahap <b>${h.stage==='approval'?'Approval':'Review'}</b> (${fmtDate(h.returnedAt)}):<br>"${escHtml(h.note||'—')}"</div>`;
+    });
+    html += `</div>`;
+  }
+  if(Array.isArray(a.reopenedHistory) && a.reopenedHistory.length){
+    html += `<div class="dsec"><div class="dsec-title">&#128275; Riwayat Approval yang Dibuka Kembali</div>`;
+    a.reopenedHistory.forEach((h,i) => {
+      const ap = h.approval || {}, rv = h.review || {};
+      html += `<div class="note-box" style="margin-top:8px">Dibuka kembali #${i+1} oleh <b>${escHtml(h.reopenedBy||'—')}</b> (${fmtDate(h.reopenedAt)})${h.reason?`: "${escHtml(h.reason)}"`:''}.<br>
+        Sebelumnya di-approve oleh <b>${escHtml(ap.approvedBy||'—')}</b> (${fmtDate(ap.approvedAt)})${rv.reviewedBy?`, direview oleh <b>${escHtml(rv.reviewedBy)}</b> (${fmtDate(rv.reviewedAt)})`:''}.
+        ${h.finalPdfUrl?`<div style="margin-top:6px"><button class="btn btn-sm" onclick="downloadRemoteFile(${escHtml(JSON.stringify(h.finalPdfUrl))}, pdfDownloadName(_curApproval, null, 'FINAL-lama-${i+1}'))">&#11015;&#65039; Unduh PDF Final lama</button></div>`:''}</div>`;
     });
     html += `</div>`;
   }
@@ -2419,20 +2678,25 @@ function renderDetail(a, cs){
     const canDel  = _canOwnerDelete(a);
     html += `<div class="dsec danger-zone" style="border-color:rgba(37,99,235,.22);background:var(--pri-soft)">
       <div class="dsec-title" style="color:var(--pri-deep)">&#9999;&#65039; Laporan Milik Anda — Koreksi</div>
-      <div class="readonly-hint" style="margin-bottom:10px">Laporan ini Anda yang submit. Perbaiki isian bila ada kesalahan, atau hapus bila belum direview.</div>`;
+      <div class="readonly-hint" style="margin-bottom:10px">Laporan ini Anda yang submit. Perbaiki isian bila ada kesalahan, atau hapus laporannya bila memang salah.</div>`;
     if(canEdit){
       html += `<button class="btn btn-sm btn-pri" onclick="openOwnRevision('${a.id}')">&#9999;&#65039; Perbaiki / Edit Laporan Ini</button>
         <div class="readonly-hint" style="margin:6px 0 0">Membuka check sheet dalam mode revisi. Setelah disimpan ulang, laporan kembali ke antrean review.</div>`;
     }else{
-      html += `<div class="readonly-hint" style="color:var(--ng)">Laporan sudah <b>disetujui (final)</b> — tidak bisa diedit sendiri. Hubungi admin bila ada kesalahan.</div>`;
+      html += `<div class="readonly-hint" style="color:var(--ng)">Laporan sudah <b>disetujui (final)</b> — tidak bisa diedit sendiri. Hubungi admin bila hanya perlu perbaikan isian (bukan hapus).</div>`;
     }
     if(canDel){
+      const warn = a.status==='approved'
+        ? 'Laporan ini <b>sudah disetujui (final)</b>. Menghapusnya juga membuang review &amp; approval yang menyertainya — perlu ketik <b>HAPUS</b> untuk konfirmasi.'
+        : (a.status==='reviewed' || a.status==='returned_to_technician')
+          ? 'Laporan ini sudah diproses reviewer — hasil review yang menyertainya juga akan ikut terhapus.'
+          : 'Laporan ini belum direview.';
       html += `<div style="border-top:1px solid var(--bdr);margin:14px 0 10px"></div>
-        <div class="readonly-hint" style="margin-bottom:10px"><b style="color:var(--ng)">Hapus permanen.</b> Laporan ini belum direview, jadi entri approval, data checklist di Dashboard, serta foto &amp; PDF di Drive akan dihapus. Tidak bisa dibatalkan.</div>
+        <div class="readonly-hint" style="margin-bottom:10px"><b style="color:var(--ng)">Hapus permanen.</b> ${warn} Entri approval, data checklist di Dashboard, serta foto &amp; PDF di Drive akan dihapus. Tidak bisa dibatalkan.</div>
         <button class="btn btn-danger" onclick="doDeleteMyReport('${a.id}')">&#128465;&#65039; Hapus Laporan Ini</button>`;
     }else{
       html += `<div style="border-top:1px solid var(--bdr);margin:14px 0 10px"></div>
-        <div class="readonly-hint">Laporan sudah diproses (direview / disetujui / dikembalikan) sehingga tidak bisa Anda hapus sendiri. Hubungi admin bila memang ada kesalahan.</div>`;
+        <div class="readonly-hint">Submission ini masuk lewat aplikasi lain — perbaikan/penghapusan dilakukan di aplikasi tersebut.</div>`;
     }
     html += `</div>`;
   }
@@ -2477,6 +2741,13 @@ function renderDetail(a, cs){
       <button class="btn btn-sm" onclick="doCancelReview()">&#8617;&#65039; Batalkan Review</button>
       ` : ''}
 
+      ${a.status==='approved' ? `
+      <div style="border-top:1px solid var(--bdr);margin:14px 0 10px"></div>
+      <div class="readonly-hint" style="margin-bottom:8px">Membuka kembali laporan yang sudah disetujui: status kembali ke <b>Submitted</b> sehingga check sheet bisa diedit &amp; ditambah datanya, lalu direview &amp; di-approve ulang. Review, approval, dan PDF final sebelumnya <b>diarsipkan</b> di Riwayat (tidak dihapus).</div>
+      <input class="dinput" id="adm-reopen-reason" placeholder="Alasan dibuka kembali (opsional), mis. tambah data megger" style="margin-bottom:8px">
+      <button class="btn btn-sm" onclick="doCancelApproval()">&#8617;&#65039; Batalkan Approval → kembali ke Submit</button>
+      ` : ''}
+
       <div style="border-top:1px solid var(--bdr);margin:14px 0 10px"></div>
       <div class="readonly-hint" style="margin-bottom:10px">Menghapus entri ini dari alur Review &amp; Approval saja. Data checklist asli TETAP tersimpan di database dan tetap terlihat di Dashboard.</div>
       <button class="btn btn-danger" onclick="doDeleteApproval()">&#128465;&#65039; Hapus dari Approval Sheet</button>
@@ -2494,15 +2765,85 @@ function renderDetail(a, cs){
   }
   if(document.getElementById('sig-canvas-review')){ attachSignaturePad('sig-canvas-review'); prefillSignatureCanvas('sig-canvas-review'); }
   if(document.getElementById('sig-canvas-approval')){ attachSignaturePad('sig-canvas-approval'); prefillSignatureCanvas('sig-canvas-approval'); }
-
-  document.querySelectorAll('.pk-thumb[data-remote-url]').forEach(img => {
-    Storage.toObjectUrl(img.dataset.remoteUrl)
-      .then(objUrl => { img.src = objUrl; })
-      .catch(() => { img.title = 'Gagal memuat foto'; });
-  });
+  // Photo thumbnails are intentionally NOT fetched here — see loadPhotoGroup()
+  // below, triggered only by the "Muat Foto" button per group.
 }
 
 const BLANK_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+const PHOTO_LOAD_CONCURRENCY = 3;
+
+// Runs up to `limit` calls of fn(item) concurrently, same capped-concurrency
+// shape as approval-helper.js's own _mapLimit (upload side) — kept as a
+// separate small copy here since that one is private to that module and this
+// is the download side of the same "never fire an uncapped burst of requests
+// at the free-tier Drive proxy" rule.
+function _mapLimitDl(items, limit, fn){
+  return new Promise(resolve => {
+    if(!items.length) return resolve();
+    let next = 0, done = 0;
+    const runOne = () => {
+      const i = next++;
+      if(i >= items.length) return;
+      fn(items[i], i).finally(() => {
+        done++;
+        if(done === items.length) resolve();
+        else runOne();
+      });
+    };
+    for(let k = 0; k < Math.min(limit, items.length); k++) runOne();
+  });
+}
+
+// Only fetches a group's photos when the technician/reviewer explicitly asks
+// for them — clicking "Muat Foto" replaces the button with a live progress
+// count, fetches at PHOTO_LOAD_CONCURRENCY at a time (never an uncapped
+// burst), renders each thumbnail as soon as ITS OWN fetch lands (not all-or-
+// nothing at the end), and leaves a "Muat Ulang" retry affordance for
+// whichever photos failed rather than silently giving up on the whole group.
+function loadPhotoGroup(btn){
+  const wrap = btn.closest('.photo-group');
+  const thumbsEl = wrap.querySelector('.photo-thumbs');
+  let list;
+  try{ list = JSON.parse(thumbsEl.dataset.urls || '[]'); }catch(e){ list = []; }
+  if(!list.length) return;
+
+  // First click builds the placeholder grid once; a "Muat Ulang" retry click
+  // (shown only when something failed) reuses the SAME <img> elements and
+  // only re-fetches the ones still marked .load-error — an already-loaded
+  // thumbnail is never re-fetched or wiped by a retry.
+  if(!thumbsEl.children.length){
+    thumbsEl.innerHTML = list.map((p,i) => `<a href="#" onclick="openRemoteFile('${p.url}');return false;"><img class="pk-thumb loading" data-idx="${i}" src="${BLANK_PIXEL}" title="${escHtml(p.caption||'')}"></a>`).join('');
+  }
+  const imgs = [...thumbsEl.querySelectorAll('.pk-thumb[data-idx]')];
+  const pending = imgs.filter(img => img.src === BLANK_PIXEL || img.classList.contains('load-error'));
+  pending.forEach(img => { img.classList.remove('load-error'); img.classList.add('loading'); });
+  if(!pending.length){ btn.remove(); return; }
+
+  btn.disabled = true;
+  let done = 0, failed = 0;
+  const total = pending.length;
+  const setLabel = () => { btn.textContent = 'Memuat foto… (' + done + '/' + total + ')'; };
+  setLabel();
+
+  _mapLimitDl(pending, PHOTO_LOAD_CONCURRENCY, (img) => {
+    const url = list[+img.dataset.idx].url;
+    return Storage.toObjectUrl(url).then(objUrl => {
+      img.src = objUrl; img.classList.remove('loading');
+      done++; setLabel();
+    }).catch(() => {
+      img.classList.remove('loading'); img.classList.add('load-error');
+      img.title = 'Gagal memuat foto — klik untuk coba buka langsung';
+      done++; failed++; setLabel();
+    });
+  }).then(() => {
+    if(failed){
+      btn.disabled = false;
+      btn.textContent = '↻ Muat Ulang (' + failed + ' gagal)';
+    } else {
+      btn.remove();
+    }
+  });
+}
 
 // ── FILE DOWNLOAD PROGRESS OVERLAY (always a real 0–100%) ──
 function _fpBytes(n){
@@ -2537,9 +2878,17 @@ function showFileProgress(label){
   }, 350);
 }
 function _fpMeta(){ return _fpLoaded ? _fpBytes(_fpLoaded) + ' diunduh' : 'Menyambungkan…'; }
-// p: {loaded,total} while streaming, or {phase:'decode'} once fetched.
+// p: {loaded,total} while streaming, {phase:'decode'} once fetched, or
+// {phase:'retry',attempt,max,error} when storage-helper.js is silently
+// retrying a transient Drive-proxy failure — surfaced here instead of the
+// progress bar just looking frozen for several seconds.
 function updateFileProgress(p){
   if(p && p.phase === 'decode'){ _fpSet(96, 'Menyiapkan file…'); return; }
+  if(p && p.phase === 'retry'){
+    document.getElementById('fp-label').textContent = 'Koneksi bermasalah, mencoba lagi… (percobaan ' + p.attempt + '/' + p.max + ')';
+    _fpRender('Mohon tunggu…');
+    return;
+  }
   const loaded = (p && p.loaded) || 0, total = (p && p.total) || 0;
   _fpLoaded = Math.max(_fpLoaded, loaded);
   if(total > 0){
@@ -2660,8 +3009,10 @@ function renderActionSection(a, cs){
       </div>` : ''}
       <label class="field-lbl">Komentar</label>
       <textarea class="dinput" id="in-comments" placeholder="Catatan hasil review..."></textarea>
+      ${loggedInRole==='techop2' ? '<div class="readonly-hint">Minimal 10 karakter — isi catatan yang benar-benar substantif, bukan sekadar kata singkat.</div>' : ''}
       <label class="field-lbl" style="margin-top:10px">Rekomendasi / Future Work</label>
       <textarea class="dinput" id="in-recommendations" placeholder="Rekomendasi tindak lanjut..."></textarea>
+      ${loggedInRole==='techop2' ? '<div class="readonly-hint">Minimal 10 karakter — wajib diisi sebelum diteruskan ke Supervisor.</div>' : ''}
       <div class="sig-pad-wrap">
         <label class="field-lbl">Tanda Tangan</label>
         <canvas class="sig-canvas" id="sig-canvas-review" width="330" height="150"></canvas>
@@ -2672,8 +3023,8 @@ function renderActionSection(a, cs){
         </div>
       </div>
       <div class="action-row">
-        <button class="btn btn-danger" onclick="doReturnToTechnician('review')">&#8617; Kembalikan ke Teknisi</button>
-        <button class="btn btn-pri" onclick="doSubmitReview()">Teruskan ke Supervisor &rarr;</button>
+        <button class="btn btn-danger" id="btn-return-review" onclick="doReturnToTechnician('review')">&#8617; Kembalikan ke Teknisi</button>
+        <button class="btn btn-pri" id="btn-submit-review" onclick="doSubmitReview()">Teruskan ke Supervisor &rarr;</button>
       </div>
     </div>`;
   }
@@ -2691,7 +3042,7 @@ function renderActionSection(a, cs){
         </div>
       </div>
       <div class="action-row">
-        <button class="btn btn-danger" onclick="doReturnToTechnician('approval')">&#8617; Kembalikan ke Teknisi</button>
+        <button class="btn btn-danger" id="btn-return-approval" onclick="doReturnToTechnician('approval')">&#8617; Kembalikan ke Teknisi</button>
         <button class="btn btn-ok" id="btn-approve" onclick="doApprove()">&#9989; Approve &amp; Buat PDF Final</button>
       </div>
     </div>`;
@@ -2765,11 +3116,36 @@ function drawImageFitted(canvasId, img){
   _sigState[canvasId].hasInk = true;
 }
 
-/* ── ACTIONS ── */
+/* ── ACTIONS ──
+   All three action functions below share one reentrancy guard (_actionBusy)
+   and lock BOTH buttons in their action-row (not just the one clicked) for
+   the duration of the async work — before this, clicking "Teruskan ke
+   Supervisor" or "Approve" gave no visible feedback until the alert() at the
+   end, so a technician unsure whether the click registered would click again,
+   firing a second Approvals.submitReview()/approve() call (or a second
+   buildFinalPdf()+upload) against the same doc while the first was still in
+   flight. _actionBusy is checked FIRST, before prompt()/alert() dialogs or
+   any validation, so a double-click can't slip in between. */
+let _actionBusy = false;
+function _lockActionButtons(activeId, otherId, busyLabel){
+  const active = document.getElementById(activeId), other = otherId && document.getElementById(otherId);
+  if(active){ active.dataset.origLabel = active.innerHTML; active.disabled = true; active.innerHTML = busyLabel; }
+  if(other) other.disabled = true;
+  return { active, other };
+}
+function _unlockActionButtons({active, other}, restoreLabel){
+  if(active){ active.disabled = false; active.innerHTML = restoreLabel != null ? restoreLabel : (active.dataset.origLabel || active.innerHTML); }
+  if(other) other.disabled = false;
+}
+
 async function doReturnToTechnician(stage){
-  if(!_curApproval) return;
+  if(!_curApproval || _actionBusy) return;
   const note = prompt('Alasan pengembalian ke teknisi:');
   if(note==null || !note.trim()){ return; }
+  _actionBusy = true;
+  const activeId = stage==='approval' ? 'btn-return-approval' : 'btn-return-review';
+  const otherId = stage==='approval' ? 'btn-approve' : 'btn-submit-review';
+  const btns = _lockActionButtons(activeId, otherId, '⏳ Mengirim...');
   try{
     await Approvals.returnToTechnician(_curApproval.id, {note:note.trim(), by:loggedInUser, stage});
     alert('Submission dikembalikan ke teknisi.');
@@ -2777,33 +3153,50 @@ async function doReturnToTechnician(stage){
     await loadAll();
   }catch(e){
     alert('Gagal mengembalikan: '+e.message);
+  }finally{
+    _actionBusy = false;
+    _unlockActionButtons(btns);
   }
 }
 
 async function doSubmitReview(){
-  if(!_curApproval) return;
+  if(!_curApproval || _actionBusy) return;
   const comments = document.getElementById('in-comments').value.trim();
   const recommendations = document.getElementById('in-recommendations').value.trim();
   const signature = getSignatureDataUrl('sig-canvas-review');
   if(!comments){ alert('Isi komentar terlebih dahulu.'); return; }
+  // Level 2 (TechOp2) must give real, substantive feedback — not just a
+  // token word — before a report can move on to the Supervisor. Explicit
+  // user request, scoped to techop2 only; admin (who can also review here)
+  // keeps the looser check, same as every other role-gated admin exemption
+  // already in this file.
+  if(loggedInRole === 'techop2'){
+    if(comments.length < 10){ alert('Komentar minimal 10 karakter sebelum diteruskan ke Supervisor.'); return; }
+    if(recommendations.length < 10){ alert('Rekomendasi / Future Work minimal 10 karakter sebelum diteruskan ke Supervisor.'); return; }
+  }
   if(!signature){ alert('Tanda tangan diperlukan sebelum diteruskan ke Supervisor.'); return; }
+  _actionBusy = true;
+  const btns = _lockActionButtons('btn-submit-review', 'btn-return-review', '⏳ Mengirim ke Supervisor...');
   try{
     await Approvals.submitReview(_curApproval.id, {comments, recommendations, signature, reviewedBy: loggedInUser});
     alert('Review terkirim, diteruskan ke Supervisor.');
     closeDetail();
     await loadAll();
   }catch(e){
-    alert('Gagal mengirim review: '+e.message);
+    alert('Gagal mengirim review: '+e.message+' — koneksi mungkin bermasalah, silakan coba lagi.');
+  }finally{
+    _actionBusy = false;
+    _unlockActionButtons(btns);
   }
 }
 
 async function doApprove(){
-  if(!_curApproval || !_curChecksheet) return;
+  if(!_curApproval || !_curChecksheet || _actionBusy) return;
   const notes = document.getElementById('in-notes').value.trim();
   const signature = getSignatureDataUrl('sig-canvas-approval');
   if(!signature){ alert('Tanda tangan diperlukan sebelum approve.'); return; }
-  const btn = document.getElementById('btn-approve');
-  btn.disabled = true; btn.textContent = '⏳ Membuat PDF final...';
+  _actionBusy = true;
+  const btns = _lockActionButtons('btn-approve', 'btn-return-approval', '⏳ Membuat PDF final...');
   showFileProgress('Mengambil PDF asli…');
   try{
     const approvedBy = loggedInUser;
@@ -2813,7 +3206,12 @@ async function doApprove(){
     };
     const blob = await buildFinalPdf(approvalForPdf, _curChecksheet, updateFileProgress);
     setFileProgressPhase('Mengunggah PDF final…');
-    const finalPdfUrl = await Storage.uploadBlob(`approvals/${_curApproval.id}/final.pdf`, blob, 'application/pdf');
+    // storage-helper.js already retries a transient upload failure a few
+    // times with backoff before this reaches the catch below — the
+    // {phase:'retry'} events it fires along the way flow into
+    // updateFileProgress() so a slow/flaky connection shows "mencoba lagi"
+    // instead of the bar just sitting still.
+    const finalPdfUrl = await Storage.uploadBlob(`approvals/${_curApproval.id}/final.pdf`, blob, 'application/pdf', updateFileProgress);
     await Approvals.approve(_curApproval.id, {notes, signature, approvedBy, finalPdfUrl});
     finishFileProgress();
     alert('Submission disetujui. PDF final siap diunduh.');
@@ -2821,9 +3219,13 @@ async function doApprove(){
     await loadAll();
   }catch(e){
     hideFileProgress();
-    alert('Gagal approve: '+e.message);
+    // Nothing here has side effects that can't be safely redone — approve()
+    // itself is a plain Firestore update, so retrying after any failure
+    // (fetch original, merge, upload final PDF) is always safe.
+    alert('Gagal approve: '+e.message+' — koneksi mungkin bermasalah, silakan coba lagi.');
   }finally{
-    btn.disabled = false; btn.textContent = '✅ Approve & Buat PDF Final';
+    _actionBusy = false;
+    _unlockActionButtons(btns, '✅ Approve & Buat PDF Final');
   }
 }
 

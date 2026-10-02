@@ -96,16 +96,27 @@
     document.querySelectorAll('[onclick*="submitToDb"],[onclick*="saveToDatabase"],[onclick*="CloudDraft.save"],[onclick*="saveSessionDraft"]').forEach(b => { b.disabled = !!lock; });
   }
 
+  // Read a page global by name — works whether it's a `window.` property OR a
+  // top-level `let`/`const` (a lexical global, which is NOT on `window`). Most
+  // check sheets declare `let PHOTOS = ...` / `const PHOTOS = {}`, so the old
+  // `window.PHOTOS` check always missed them and a "Simpan ke Database" draft
+  // saved zero photos. `new Function` runs in true global scope.
+  function _pageGlobal(name) {
+    try { return (new Function('return (typeof ' + name + '!=="undefined")?' + name + ':undefined'))(); }
+    catch (e) { return undefined; }
+  }
   function autoPhotos() {
     try {
-      if (window.PHOTOS && typeof PHOTOS === 'object') {
-        if (Array.isArray(PHOTOS)) return PHOTOS.length ? { main: PHOTOS } : null;
+      const P = _pageGlobal('PHOTOS');
+      if (P && typeof P === 'object') {
+        if (Array.isArray(P)) return P.length ? { main: P } : null;
         const o = {}; let any = false;
-        Object.keys(PHOTOS).forEach(k => { if (Array.isArray(PHOTOS[k]) && PHOTOS[k].length) { o[k] = PHOTOS[k]; any = true; } });
+        Object.keys(P).forEach(k => { if (Array.isArray(P[k]) && P[k].length) { o[k] = P[k]; any = true; } });
         return any ? o : null;
       }
-      if (Array.isArray(window.FILES)) {
-        const imgs = window.FILES.filter(f => f && /^image\//.test(f.type || '') && (f.src || f.dataUrl));
+      const F = _pageGlobal('FILES');
+      if (Array.isArray(F)) {
+        const imgs = F.filter(f => f && /^image\//.test(f.type || '') && (f.src || f.dataUrl));
         return imgs.length ? { main: imgs } : null;
       }
     } catch (e) {}
@@ -142,11 +153,32 @@
     _busy = true; lockSubmit(true); progShow('Menyimpan draft ke database…');
     const id = currentDraftId(true);
     const s = sess();
-    const prevUrls = (_activeDoc && _activeDoc.photoUrls) || {};
+    // photos already on Drive from the last save of THIS draft. _activeDoc has
+    // it after an adopt / a prior save this session; otherwise fetch the doc so
+    // an unchanged photo is never re-uploaded — and, more importantly, so a save
+    // made while photos are still loading never ERASES the group from the doc.
+    let prevUrls = (_activeDoc && _activeDoc.photoUrls) || null;
+    let prevCreatedAt = _activeDoc && _activeDoc.createdAt;
+    if (!prevUrls || !prevCreatedAt) {
+      try {
+        const pd = await db.collection(COLL).doc(id).get();
+        if (pd.exists && pd.data()) {
+          if (!prevUrls) prevUrls = pd.data().photoUrls || null;
+          if (!prevCreatedAt) prevCreatedAt = pd.data().createdAt || null;
+        }
+      } catch (e) {}
+    }
+    prevUrls = prevUrls || {};
     try {
       // 1. photos → Drive, skipping any unchanged since last save
       let photoUrls = null;
-      const photos = (typeof cfg.photos === 'function') ? cfg.photos() : autoPhotos();
+      let photos = (typeof cfg.photos === 'function') ? cfg.photos() : autoPhotos();
+      // A host that passes `photos: () => somePhotoArray` (a bare array, not the
+      // `{group: [...]}` dict this function needs) used to silently save ZERO
+      // photos — `Object.keys([...])` is `["0","1",...]` and `photos["0"].length`
+      // is `undefined`, so every "group" got filtered out. Normalise it here the
+      // same way autoPhotos() already does for the no-arg path.
+      if (Array.isArray(photos)) photos = photos.length ? { evidence: photos } : null;
       if (photos && typeof Storage !== 'undefined' && Storage.uploadDataUrl) {
         photoUrls = {};
         const groups = Object.keys(photos).filter(g => (photos[g] || []).length);
@@ -160,7 +192,10 @@
             const src = p.src || p.dataUrl;
             const meta = { caption: p.caption || '', w: p.w, h: p.h, widthCm: p.widthCm, heightCm: p.heightCm };
             const sig = photoSig(src);
-            if (p.__cdUrl && p.__cdSig === sig) { urls.push(Object.assign({ url: p.__cdUrl }, meta)); done++; continue; }
+            // already on Drive: an entry we stamped before (sig match), OR a
+            // pure reference with no local data URL (a not-yet-downloaded photo
+            // from a session restore) — either way, keep the URL, don't upload.
+            if (p.__cdUrl && (!src || p.__cdSig === sig)) { urls.push(Object.assign({ url: p.__cdUrl, _sig: p.__cdSig || sig }, meta)); done++; continue; }
             if (prevG[i] && prevG[i].url && prevG[i]._sig === sig) { urls.push(Object.assign({ url: prevG[i].url, _sig: sig }, meta)); p.__cdUrl = prevG[i].url; p.__cdSig = sig; done++; continue; }
             if (!src || String(src).indexOf('data:') !== 0) { done++; continue; }
             try {
@@ -174,10 +209,17 @@
         }
         if (uploaded === 0 && total > 0) progSet(85, 'Foto tidak berubah — tidak diunggah ulang.');
       }
+      // Safety net: if the host gave us NO photo state at all (cfg.photos()
+      // returned null — a load-order race or a throw) but the draft already has
+      // photos on Drive, keep them rather than erasing the group with a .set().
+      // Not applied when cfg.photos() returned an object: there an absent group
+      // is a real "these were deleted", which must stick.
+      if (photos == null && Object.keys(prevUrls).length) {
+        photoUrls = Object.assign({}, prevUrls);
+      }
       progSet(92, 'Menyimpan data…');
 
-      let createdAt = new Date().toISOString();
-      try { const prev = await db.collection(COLL).doc(id).get(); if (prev.exists && prev.data() && prev.data().createdAt) createdAt = prev.data().createdAt; } catch (e) {}
+      let createdAt = prevCreatedAt || new Date().toISOString();
       const payload = {
         formId: cfg.formId, assetTag: tagNow(), assetName: cfg.assetName || '', frequency: cfg.frequency || '',
         woNumber: state.woNumber, checkedBy: state.checkedBy, executionDate: state.executionDate,

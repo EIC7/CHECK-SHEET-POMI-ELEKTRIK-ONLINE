@@ -8,18 +8,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="../firebase-config.js?v=20260901d"></script>
-<script src="../db-helper.js?v=20260901d"></script>
-<script src="../storage-helper.js?v=20260901d"></script>
-<script src="../approval-helper.js?v=20260901d"></script>
-<script src="../submit-guard.js?v=20260901d"></script>
-<script src="../pdf-preview.js?v=20260901d"></script>
-<script src="../load-merge-modal.js?v=20260901d"></script>
-<script src="../cloud-draft.js?v=20260901d"></script>
-<script src="../auth-session.js?v=20260901d"></script>
-<script src="../technician-auth.js?v=20260901d"></script>
-<script src="../img-helper.js?v=20260901d"></script>
-<script src="../photo-kit.js?v=20260901d"></script>
+<script src="../firebase-config.js?v=20261001b"></script>
+<script src="../db-helper.js?v=20261001b"></script>
+<script src="../storage-helper.js?v=20261001b"></script>
+<script src="../approval-helper.js?v=20261001b"></script>
+<script src="../submit-guard.js?v=20261001b"></script>
+<script src="../pdf-preview.js?v=20261001b"></script>
+<script src="../load-merge-modal.js?v=20261001b"></script>
+<script src="../cloud-draft.js?v=20261001b"></script>
+<script src="../auth-session.js?v=20261001b"></script>
+<script src="../feedback-widget.js?v=20261001b"></script>
+<script src="../technician-auth.js?v=20261001b"></script>
+<script src="../table-nav.js?v=20261001b"></script>
+<script src="../img-helper.js?v=20261001b"></script>
+<script src="../photo-kit.js?v=20261001b"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -260,12 +262,20 @@ body{font-family:var(--sans);background:var(--bg);color:var(--txt);min-height:10
   .hero-stats .hstat{min-width:60px;padding:8px 10px}
   .hstat-n{font-size:18px}
   .fishbone-grid{grid-template-columns:1fr}
-  .btn-draft{display:none}
+  .btn-draft.btn-sm{display:none}
   .autosave-ind{display:none}
 }
 @media(max-width:400px){
   .topbar{padding:0 12px}
   .wrap{padding:12px 10px 60px}
+}
+
+/* mobile-topbar-fix: on a phone the topbar buttons scroll inside the bar
+   instead of widening the whole page (which made every page side-scroll) */
+@media(max-width:640px){
+  .tb-right{min-width:0;flex-shrink:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tb-right::-webkit-scrollbar{display:none}
+  .tb-right>*{flex-shrink:0}
 }
 </style>
 </head>
@@ -2583,9 +2593,16 @@ async function generatePDF(opts){
   y += 8;
 
   // ── SAVE / SILENT ──
-  const wo = (gv('wo-no') || 'MCA').replace(/[^A-Za-z0-9_-]/g,'_');
-  const dt = gv('wo-date') || new Date().toISOString().split('T')[0];
-  const filename = `MCA_${wo}_${dt}.pdf`;
+  // Filename mirrors the report itself so each download is distinct even when
+  // WO No./date happen to repeat: <Work Order Type> Report <WO No.> <Asset Tag> <Failure Desc>
+  const fnPart = s => (s || '').toString().trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+  const woType = gv('wo-type') || 'CM';
+  const woNo = gv('wo-no') || 'NoWO';
+  const assetTagFn = gv('asset-tag') || MCA_ASSET_TAG;
+  let failureDesc = gv('failure-desc') || '';
+  if (failureDesc.length > 60) failureDesc = failureDesc.slice(0, 60).trim() + '...';
+  const filename = [woType, 'Report', woNo, assetTagFn, failureDesc]
+    .map(fnPart).filter(Boolean).join(' ') + '.pdf';
   if(opts.silent){
     // no-op: caller reads the returned pdf object directly
   }else{

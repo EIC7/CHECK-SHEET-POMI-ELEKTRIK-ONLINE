@@ -7,18 +7,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260901d"></script>
-<script src="db-helper.js?v=20260901d"></script>
-<script src="storage-helper.js?v=20260901d"></script>
-<script src="approval-helper.js?v=20260901d"></script>
-<script src="submit-guard.js?v=20260901d"></script>
-<script src="pdf-preview.js?v=20260901d"></script>
-<script src="load-merge-modal.js?v=20260901d"></script>
-<script src="cloud-draft.js?v=20260901d"></script>
-<script src="auth-session.js?v=20260901d"></script>
-<script src="technician-auth.js?v=20260901d"></script>
-<script src="img-helper.js?v=20260901d"></script>
-<script src="photo-kit.js?v=20260901d"></script>
+<script src="firebase-config.js?v=20261001b"></script>
+<script src="db-helper.js?v=20261001b"></script>
+<script src="storage-helper.js?v=20261001b"></script>
+<script src="approval-helper.js?v=20261001b"></script>
+<script src="submit-guard.js?v=20261001b"></script>
+<script src="pdf-preview.js?v=20261001b"></script>
+<script src="load-merge-modal.js?v=20261001b"></script>
+<script src="cloud-draft.js?v=20261001b"></script>
+<script src="auth-session.js?v=20261001b"></script>
+<script src="feedback-widget.js?v=20261001b"></script>
+<script src="technician-auth.js?v=20261001b"></script>
+<script src="table-nav.js?v=20261001b"></script>
+<script src="img-helper.js?v=20261001b"></script>
+<script src="photo-kit.js?v=20261001b"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -256,6 +258,14 @@ body{font-family:var(--sans);background:var(--bg);color:var(--txt);min-height:10
 .print-header strong{font-size:13px;color:var(--navy);font-family:var(--raj);letter-spacing:1px}
 .btn-back{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:5px;font-size:11px;font-weight:700;letter-spacing:1px;text-decoration:none;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.18);transition:background .15s;white-space:nowrap;cursor:pointer;flex-shrink:0}
 .btn-back:hover{background:rgba(255,255,255,0.2);color:#fff}
+
+/* mobile-topbar-fix: on a phone the topbar buttons scroll inside the bar
+   instead of widening the whole page (which made every page side-scroll) */
+@media(max-width:640px){
+  .tb-right{min-width:0;flex-shrink:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tb-right::-webkit-scrollbar{display:none}
+  .tb-right>*{flex-shrink:0}
+}
 </style>
 </head>
 <body>
