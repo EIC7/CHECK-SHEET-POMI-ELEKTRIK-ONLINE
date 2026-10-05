@@ -3,7 +3,7 @@
 Prinsip: **Firebase tidak diubah/dihapus sampai Supabase terbukti jalan sama seperti sebelumnya.**
 Hanya repo org EIC7 yang disentuh. Project Supabase tujuan: `xzjayhjierilqxwucnkn` (database baru — sudah dikonfirmasi pengguna). Login: Supabase Auth (keputusan pengguna).
 
-## Pemetaan koleksi → tabel (file: `sql/cs_001_schema_firestore_mirror.sql`)
+## Pemetaan koleksi → tabel (file: `sql/cs_001_schema_firestore_mirror.sql` + `sql/cs_002_additions.sql`)
 | Firestore | Supabase | Catatan |
 |---|---|---|
 | `checksheets` | `cs_checksheets` | kolom inti + `data jsonb` (isi form apa adanya) |
@@ -14,6 +14,8 @@ Hanya repo org EIC7 yang disentuh. Project Supabase tujuan: `xzjayhjierilqxwucnk
 | `weekly_dashboard/{key}` | `cs_weekly_meta` | key `eic7_weekly` / `eic7_jobarrangement` |
 | `weekly_dashboard/{key}/workOrders` | `cs_weekly_work_orders` | PK (key, id) |
 | `dashboard_config/registration` | `cs_config` | key `registration` |
+| `project_schedules` | `cs_project_schedules` | (cs_002) halaman Project Progress Monitor |
+| `feedback_reports` | `cs_feedback_reports` | (cs_002) halaman Feedback Reports + widget |
 
 ## Fase
 1. **Skema** (file SQL di atas) dijalankan di SQL Editor Supabase. RLS aktif, belum ada policy publik.
